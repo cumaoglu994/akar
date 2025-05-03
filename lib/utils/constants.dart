@@ -1,0 +1,38 @@
+class AppConstants {
+  static const String appName = 'بيع واشتري';
+  
+  // Firebase Collections
+  static const String usersCollection = 'users';
+  static const String adsCollection = 'ads';
+  static const String chatsCollection = 'chats';
+  static const String messagesCollection = 'messages';
+  static const String favoritesCollection = 'favorites';
+  
+  // Storage Paths
+  static const String adsImagesPath = 'ads_images';
+  static const String profileImagesPath = 'profile_images';
+  
+  // Categories
+  static const List<String> categories = [
+    'سيارات',
+    'عقارات',
+    'أجهزة إلكترونية',
+    'أثاث',
+    'ملابس',
+    'أخرى',
+  ];
+  
+  // Cities
+  static const List<String> cities = [
+    'الرياض',
+    'جدة',
+    'مكة المكرمة',
+    'المدينة المنورة',
+    'الدمام',
+    'الخبر',
+    'الطائف',
+    'تبوك',
+    'أبها',
+    'حائل',
+  ];
+} 
