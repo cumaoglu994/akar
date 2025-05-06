@@ -5,7 +5,6 @@ import 'package:card_swiper/card_swiper.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/constants.dart';
 import 'chat_screen.dart';
-import '../../providers/theme_provider.dart';
 
 class AdDetailsScreen extends StatefulWidget {
   final QueryDocumentSnapshot ad;
@@ -71,160 +70,161 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final adData = widget.ad.data() as Map<String, dynamic>;
+    final theme = Theme.of(context);
+    
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('تفاصيل الإعلان'),
-          actions: [
-            IconButton(
-              icon: Icon(
-                _isFavorite ? Icons.favorite : Icons.favorite_border,
-                color: _isFavorite ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.onSurface,
-              ),
-              onPressed: _toggleFavorite,
-            ),
-          ],
-        ),
-        body: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (widget.ad['images'] != null && widget.ad['images'].isNotEmpty)
-                SizedBox(
-                  height: 300,
-                  width: double.infinity,
-                  child: Swiper(
-                    itemBuilder: (BuildContext context, int index) {
-                      return Image.network(
-                        widget.ad['images'][index],
-                        fit: BoxFit.cover,
-                      );
-                    },
-                    itemCount: widget.ad['images'].length,
-                    pagination: const SwiperPagination(
-                      builder: DotSwiperPaginationBuilder(
-                        color: Colors.grey,
-                        activeColor: ThemeProvider.primaryColor,
-                        size: 8.0,
-                        activeSize: 10.0,
+        body: CustomScrollView(
+          slivers: [
+            // App Bar
+            SliverAppBar(
+              expandedHeight: 300,
+              pinned: true,
+              flexibleSpace: FlexibleSpaceBar(
+                background: adData['images'] != null && adData['images'].isNotEmpty
+                    ? Swiper(
+                        itemBuilder: (BuildContext context, int index) {
+                          return Image.network(
+                            adData['images'][index],
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                color: Colors.grey[200],
+                                child: const Icon(Icons.image, size: 50),
+                              );
+                            },
+                          );
+                        },
+                        itemCount: adData['images'].length,
+                        pagination: const SwiperPagination(
+                          builder: DotSwiperPaginationBuilder(
+                            color: Colors.grey,
+                            activeColor: Colors.white,
+                            size: 8.0,
+                            activeSize: 10.0,
+                          ),
+                        ),
+                        control: const SwiperControl(
+                          color: Colors.white,
+                        ),
+                      )
+                    : Container(
+                        color: Colors.grey[200],
+                        child: const Icon(Icons.image, size: 50),
                       ),
-                    ),
-                    control: const SwiperControl(
-                      color: ThemeProvider.primaryColor,
-                    ),
-                    autoplay: true,
+              ),
+              actions: [
+                IconButton(
+                  icon: Icon(
+                    _isFavorite ? Icons.favorite : Icons.favorite_border,
+                    color: _isFavorite ? theme.colorScheme.error : Colors.white,
                   ),
+                  onPressed: _toggleFavorite,
                 ),
-              Padding(
+              ],
+            ),
+            
+            // Content
+            SliverToBoxAdapter(
+              child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Title and Price
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            adData['title'] ?? '',
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primary.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '${_formatPrice(adData['price'] ?? 0)} ل.س',
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              color: theme.colorScheme.primary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Details Card
                     Card(
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: BorderSide(
+                          color: theme.dividerColor,
+                          width: 1,
+                        ),
+                      ),
                       child: Padding(
-                        padding: const EdgeInsets.all(16.0),
+                        padding: const EdgeInsets.all(16),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              widget.ad['title'],
-                              style: Theme.of(context).textTheme.displaySmall,
+                            _buildDetailRow(
+                              Icons.location_on,
+                              'المدينة',
+                              adData['city'] ?? '',
                             ),
-                            const SizedBox(height: 8),
-                            Text(
-                              '${widget.ad['price']} ريال',
-                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                    color: ThemeProvider.successColor,
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                            const SizedBox(height: 12),
+                            _buildDetailRow(
+                              Icons.category,
+                              'الفئة',
+                              adData['category'] ?? '',
+                            ),
+                            const SizedBox(height: 12),
+                            _buildDetailRow(
+                              Icons.calendar_today,
+                              'تاريخ النشر',
+                              _formatDate((adData['createdAt'] as Timestamp).toDate()),
                             ),
                           ],
                         ),
                       ),
                     ),
                     const SizedBox(height: 16),
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'الوصف',
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              widget.ad['description'],
-                              style: Theme.of(context).textTheme.bodyLarge,
-                            ),
-                          ],
-                        ),
+                    
+                    // Description
+                    Text(
+                      'الوصف',
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'معلومات الإعلان',
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                            ),
-                            const SizedBox(height: 8),
-                            _buildInfoRow('المدينة', widget.ad['city']),
-                            _buildInfoRow('الفئة', widget.ad['category']),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: StreamBuilder<DocumentSnapshot>(
-                          stream: FirebaseFirestore.instance
-                              .collection(AppConstants.usersCollection)
-                              .doc(widget.ad['userId'])
-                              .snapshots(),
-                          builder: (context, snapshot) {
-                            if (snapshot.hasData) {
-                              final userData = snapshot.data!.data() as Map<String, dynamic>;
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'معلومات البائع',
-                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  _buildInfoRow('الاسم', userData['name']),
-                                  _buildInfoRow('البريد الإلكتروني', userData['email']),
-                                ],
-                              );
-                            }
-                            return const Center(child: CircularProgressIndicator());
-                          },
-                        ),
-                      ),
+                    const SizedBox(height: 8),
+                    Text(
+                      adData['description'] ?? '',
+                      style: theme.textTheme.bodyLarge,
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
         bottomNavigationBar: Container(
-          color: Theme.of(context).scaffoldBackgroundColor,
+          color: theme.scaffoldBackgroundColor,
           padding: EdgeInsets.only(
             bottom: MediaQuery.of(context).padding.bottom,
             left: 16,
@@ -237,7 +237,7 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                 context,
                 MaterialPageRoute(
                   builder: (context) => ChatScreen(
-                    sellerId: widget.ad['userId'],
+                    sellerId: adData['userId'],
                     adId: widget.ad.id,
                   ),
                 ),
@@ -245,6 +245,9 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
             },
             style: ElevatedButton.styleFrom(
               minimumSize: const Size(double.infinity, 50),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
             child: const Text(
               'تواصل مع البائع',
@@ -256,21 +259,55 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
     );
   }
 
-  Widget _buildInfoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        children: [
-          Text(
-            '$label: ',
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              color: ThemeProvider.secondaryTextColor,
-            ),
+  Widget _buildDetailRow(IconData icon, String label, String value) {
+    return Row(
+      children: [
+        Icon(
+          icon,
+          size: 20,
+          color: Colors.grey[600],
+        ),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Colors.grey[600],
           ),
-          Text(value),
-        ],
-      ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          value,
+          style: const TextStyle(fontSize: 16),
+        ),
+      ],
     );
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+
+    if (difference.inDays == 0) {
+      if (difference.inHours == 0) {
+        return 'قبل ${difference.inMinutes} دقيقة';
+      }
+      return 'قبل ${difference.inHours} ساعة';
+    } else if (difference.inDays == 1) {
+      return 'بالأمس';
+    } else if (difference.inDays < 7) {
+      return 'قبل ${difference.inDays} أيام';
+    } else {
+      return '${date.day}/${date.month}/${date.year}';
+    }
+  }
+
+  String _formatPrice(int price) {
+    if (price >= 1000000) {
+      return '${(price / 1000000).toStringAsFixed(1)} مليون';
+    } else if (price >= 1000) {
+      return '${(price / 1000).toStringAsFixed(1)} ألف';
+    }
+    return price.toString();
   }
 } 

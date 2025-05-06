@@ -30,11 +30,13 @@ class ThemeProvider with ChangeNotifier {
       primary: primaryColor,
       secondary: secondaryColor,
       surface: surfaceColor,
+      // ignore: deprecated_member_use
       background: backgroundColor,
       error: errorColor,
       onPrimary: Colors.white,
       onSecondary: Colors.black,
       onSurface: textColor,
+      // ignore: deprecated_member_use
       onBackground: textColor,
       onError: Colors.white,
       brightness: Brightness.light,
@@ -59,6 +61,7 @@ class ThemeProvider with ChangeNotifier {
         borderRadius: BorderRadius.circular(16),
       ),
       color: surfaceColor,
+      // ignore: deprecated_member_use
       shadowColor: Colors.black.withOpacity(0.1),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
@@ -145,11 +148,13 @@ class ThemeProvider with ChangeNotifier {
       primary: primaryColor,
       secondary: secondaryColor,
       surface: const Color(0xFF1E1E1E),
+      // ignore: deprecated_member_use
       background: const Color(0xFF121212),
       error: errorColor,
       onPrimary: Colors.white,
       onSecondary: Colors.black,
       onSurface: Colors.white,
+      // ignore: deprecated_member_use
       onBackground: Colors.white,
       onError: Colors.white,
       brightness: Brightness.dark,
@@ -174,6 +179,7 @@ class ThemeProvider with ChangeNotifier {
         borderRadius: BorderRadius.circular(16),
       ),
       color: const Color(0xFF1E1E1E),
+      // ignore: deprecated_member_use
       shadowColor: Colors.black.withOpacity(0.2),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
