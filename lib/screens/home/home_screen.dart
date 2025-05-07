@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/constants.dart';
+import '../../services/home_service.dart';
+import '../../models/ad_model.dart';
+import '../../models/category_model.dart';
+import '../../models/location_models.dart';
 import 'add_ad_screen.dart';
 import 'my_ads_screen.dart';
 import '../profile/profile_screen.dart';
@@ -23,114 +27,33 @@ class _HomeScreenState extends State<HomeScreen> {
   int? _minPrice;
   int? _maxPrice;
   bool _showFilters = false;
+  final HomeService _homeService = HomeService(Supabase.instance.client);
+  List<City> _city = [];
+  List<Category> _category = [];
+  bool _isLoading = true;
 
-  final List<String> _cities = [
-    'الكل',
-    'دمشق',
-    'حلب',
-    'حمص',
-    'اللاذقية',
-    'حماة',
-    'طرطوس',
-    'دير الزور',
-    'الحسكة',
-    'الرقة',
-  ];
-
-  final List<String> _categories = [
-    'الكل',
-    'سيارات',
-    'عقارات',
-    'موبايلات',
-    'أثاث',
-    'أجهزة كهربائية',
-    'ملابس',
-    'ألعاب',
-    'حيوانات',
-    'أخرى',
-  ];
-
-  Query<Map<String, dynamic>> _getFilteredQuery() {
-    Query<Map<String, dynamic>> query = FirebaseFirestore.instance
-        .collection(AppConstants.adsCollection);
-
-    // Önce sıralama yap
-    query = query.orderBy('createdAt', descending: true);
-
-    // Arama sorgusu
-    if (_searchQuery.isNotEmpty) {
-      query = query.where('title', isGreaterThanOrEqualTo: _searchQuery)
-          .where('title', isLessThanOrEqualTo: _searchQuery + '\uf8ff');
-    }
-
-    // Şehir filtresi
-    if (_selectedCity != 'الكل') {
-      query = query.where('city', isEqualTo: _selectedCity);
-    }
-
-    // Kategori filtresi
-    if (_selectedCategory != 'الكل') {
-      query = query.where('category', isEqualTo: _selectedCategory);
-    }
-
-    // Fiyat aralığı
-    if (_minPrice != null && _maxPrice != null) {
-      query = query.where('price', isGreaterThanOrEqualTo: _minPrice)
-          .where('price', isLessThanOrEqualTo: _maxPrice);
-    } else if (_minPrice != null) {
-      query = query.where('price', isGreaterThanOrEqualTo: _minPrice);
-    } else if (_maxPrice != null) {
-      query = query.where('price', isLessThanOrEqualTo: _maxPrice);
-    }
-
-    return query;
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
   }
 
-  Future<void> _addSampleAds() async {
-    final user = context.read<AuthProvider>().user;
-    if (user == null) return;
-
-    final ads = [
-      {
-        'title': 'سيارة تويوتا كامري 2020',
-        'description': 'سيارة تويوتا كامري موديل 2020، لون أبيض، حالة ممتازة، مكفولة من الوكيل',
-        'price': 85000000,
-        'city': 'دمشق',
-        'category': 'سيارات',
-        'images': [
-          'https://images.pexels.com/photos/170811/pexels-photo-170811.jpeg',
-        ],
-        'userId': user.uid,
-        'createdAt': Timestamp.now(),
-      },
-      {
-        'title': 'شقة للبيع في المزة',
-        'description': 'شقة للبيع في حي المزة، مساحة 120م، طابق ثالث، 3 غرف نوم، 2 حمام',
-        'price': 5000000,
-        'city': 'دمشق',
-        'category': 'عقارات',
-        'images': [
-          'https://images.pexels.com/photos/1571460/pexels-photo-1571460.jpeg',
-        ],
-        'userId': user.uid,
-        'createdAt': Timestamp.now(),
-      },
-      {
-        'title': 'آيفون 13 برو ماكس',
-        'description': 'آيفون 13 برو ماكس، 256 جيجا، لون أزرق، حالة ممتازة، مع علبته الأصلية',
-        'price': 12000000,
-        'city': 'حلب',
-        'category': 'موبايلات',
-        'images': [
-          'https://images.pexels.com/photos/699122/pexels-photo-699122.jpeg',
-        ],
-        'userId': user.uid,
-        'createdAt': Timestamp.now(),
-      },
-    ];
-
-    for (var ad in ads) {
-      await FirebaseFirestore.instance.collection(AppConstants.adsCollection).add(ad);
+  Future<void> _loadData() async {
+    try {
+      final city = await _homeService.getCity();
+      final category = await _homeService.getCategory();
+      setState(() {
+        _city = city;
+        _category = category;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('خطأ في تحميل البيانات: $e')),
+        );
+      }
     }
   }
 
@@ -165,7 +88,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: [
                       Row(
                         children: [
-                          // Search Bar
                           Expanded(
                             child: TextField(
                               decoration: InputDecoration(
@@ -185,7 +107,6 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          // Filter Button
                           ElevatedButton.icon(
                             onPressed: () {
                               setState(() {
@@ -203,7 +124,6 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ],
                       ),
-                      // Filter Options
                       if (_showFilters)
                         Card(
                           margin: const EdgeInsets.only(top: 8),
@@ -213,7 +133,6 @@ class _HomeScreenState extends State<HomeScreen> {
                               children: [
                                 Row(
                                   children: [
-                                    // City Filter
                                     Expanded(
                                       child: DropdownButtonFormField<String>(
                                         value: _selectedCity,
@@ -221,12 +140,18 @@ class _HomeScreenState extends State<HomeScreen> {
                                           labelText: 'المدينة',
                                           border: OutlineInputBorder(),
                                         ),
-                                        items: _cities.map((String city) {
-                                          return DropdownMenuItem<String>(
-                                            value: city,
-                                            child: Text(city),
-                                          );
-                                        }).toList(),
+                                        items: [
+                                          const DropdownMenuItem<String>(
+                                            value: 'الكل',
+                                            child: Text('الكل'),
+                                          ),
+                                          ..._city.map((city) {
+                                            return DropdownMenuItem<String>(
+                                              value: city.id,
+                                              child: Text(city.name),
+                                            );
+                                          }).toList(),
+                                        ],
                                         onChanged: (String? newValue) {
                                           setState(() {
                                             _selectedCity = newValue!;
@@ -235,7 +160,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                       ),
                                     ),
                                     const SizedBox(width: 16),
-                                    // Category Filter
                                     Expanded(
                                       child: DropdownButtonFormField<String>(
                                         value: _selectedCategory,
@@ -243,12 +167,18 @@ class _HomeScreenState extends State<HomeScreen> {
                                           labelText: 'الفئة',
                                           border: OutlineInputBorder(),
                                         ),
-                                        items: _categories.map((String category) {
-                                          return DropdownMenuItem<String>(
-                                            value: category,
-                                            child: Text(category),
-                                          );
-                                        }).toList(),
+                                        items: [
+                                          const DropdownMenuItem<String>(
+                                            value: 'الكل',
+                                            child: Text('الكل'),
+                                          ),
+                                          ..._category.map((category) {
+                                            return DropdownMenuItem<String>(
+                                              value: category.id ?? '',
+                                              child: Text(category.name ?? ''),
+                                            );
+                                          }).toList(),
+                                        ],
                                         onChanged: (String? newValue) {
                                           setState(() {
                                             _selectedCategory = newValue!;
@@ -259,7 +189,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ],
                                 ),
                                 const SizedBox(height: 16),
-                                // Price Range
                                 Row(
                                   children: [
                                     Expanded(
@@ -300,10 +229,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     ],
                   ),
                 ),
-                // Ads List
                 Expanded(
-                  child: StreamBuilder<QuerySnapshot>(
-                    stream: _getFilteredQuery().snapshots(),
+                  child: StreamBuilder<List<Map<String, dynamic>>>(
+                    stream: Supabase.instance.client
+                        .from(AppConstants.adsTable)
+                        .stream(primaryKey: ['id'])
+                        .order('created_at', ascending: false),
                     builder: (context, snapshot) {
                       if (snapshot.hasError) {
                         return Center(child: Text('حدث خطأ: ${snapshot.error}'));
@@ -313,159 +244,122 @@ class _HomeScreenState extends State<HomeScreen> {
                         return const Center(child: CircularProgressIndicator());
                       }
 
-                      final ads = snapshot.data?.docs ?? [];
+                      var ads = snapshot.data ?? [];
+
+                      // Apply filters
+                      if (_searchQuery.isNotEmpty) {
+                        ads = ads.where((ad) => 
+                          (ad['title'] ?? '').toLowerCase().contains(_searchQuery.toLowerCase())
+                        ).toList();
+                      }
+
+                      if (_selectedCity != 'الكل') {
+                        ads = ads.where((ad) => ad['city_id'] == _selectedCity).toList();
+                      }
+
+                      if (_selectedCategory != 'الكل') {
+                        ads = ads.where((ad) => ad['category_id'] == _selectedCategory).toList();
+                      }
+
+                      if (_minPrice != null) {
+                        ads = ads.where((ad) => (ad['price'] ?? 0) >= _minPrice!).toList();
+                      }
+
+                      if (_maxPrice != null) {
+                        ads = ads.where((ad) => (ad['price'] ?? 0) <= _maxPrice!).toList();
+                      }
 
                       if (ads.isEmpty) {
-                        return Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.announcement, size: 50, color: Colors.grey),
-                              const SizedBox(height: 16),
-                              Text(
-                                'لا توجد إعلانات',
-                                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  color: Colors.grey,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              ElevatedButton.icon(
-                                onPressed: _addSampleAds,
-                                icon: const Icon(Icons.add),
-                                label: const Text('إضافة عينات'),
-                              ),
-                            ],
-                          ),
+                        return const Center(
+                          child: Text('لا توجد إعلانات'),
                         );
                       }
 
                       return ListView.builder(
-                        padding: const EdgeInsets.all(8),
                         itemCount: ads.length,
                         itemBuilder: (context, index) {
                           final ad = ads[index];
-                          final adData = ad.data() as Map<String, dynamic>;
-                          return InkWell(
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => AdDetailsScreen(ad: ad),
-                                ),
-                              );
-                            },
-                            child: Card(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              child: Padding(
-                                padding: const EdgeInsets.all(8.0),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    // Image
-                                    ClipRRect(
-                                      borderRadius: BorderRadius.circular(8),
-                                      child: adData['images'] != null && adData['images'].isNotEmpty
-                                          ? Image.network(
-                                              adData['images'][0],
-                                              width: 80,
-                                              height: 80,
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (context, error, stackTrace) {
-                                                return Container(
-                                                  width: 80,
-                                                  height: 80,
-                                                  color: Colors.grey[200],
-                                                  child: const Icon(Icons.image, size: 40),
-                                                );
-                                              },
-                                            )
-                                          : Container(
-                                              width: 80,
-                                              height: 80,
-                                              color: Colors.grey[200],
-                                              child: const Icon(Icons.image, size: 40),
-                                            ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    // Content
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            adData['title'] ?? '',
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 16,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            adData['description'] ?? '',
-                                            style: TextStyle(
-                                              color: Colors.grey[600],
-                                              fontSize: 14,
-                                            ),
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                          const SizedBox(height: 8),
-                                          Wrap(
-                                            spacing: 8,
-                                            runSpacing: 4,
-                                            children: [
-                                              Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  Icon(Icons.location_on, size: 16, color: Colors.grey[600]),
-                                                  const SizedBox(width: 4),
-                                                  Text(
-                                                    adData['city'] ?? '',
-                                                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                                                  ),
-                                                ],
-                                              ),
-                                              Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  Icon(Icons.category, size: 16, color: Colors.grey[600]),
-                                                  const SizedBox(width: 4),
-                                                  Text(
-                                                    adData['category'] ?? '',
-                                                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          ),
-                                        ],
+                          return Card(
+                            margin: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            child: ListTile(
+                              leading: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: ad['images'] != null && (ad['images'] as List).isNotEmpty
+                                    ? Image.network(
+                                        ad['images'][0],
+                                        width: 60,
+                                        height: 60,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (context, error, stackTrace) {
+                                          return Container(
+                                            width: 60,
+                                            height: 60,
+                                            color: Colors.grey[300],
+                                            child: const Icon(Icons.error),
+                                          );
+                                        },
+                                      )
+                                    : Container(
+                                        width: 60,
+                                        height: 60,
+                                        color: Colors.grey[300],
+                                        child: const Icon(Icons.image),
                                       ),
-                                    ),
-                                    // Price and Date
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.end,
-                                      children: [
-                                        Text(
-                                          '${_formatPrice(adData['price'] ?? 0)} ل.س',
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.green,
-                                            fontSize: 16,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          _formatDate((adData['createdAt'] as Timestamp).toDate()),
-                                          style: TextStyle(
-                                            color: Colors.grey[600],
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
                               ),
+                              title: Text(ad['title'] ?? ''),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '${_formatPrice(ad['price'] ?? 0)} ل.س',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.green,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      Icon(Icons.location_on, size: 16, color: Colors.grey[600]),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        _city.firstWhere(
+                                          (city) => city.id == ad['city_id'],
+                                          orElse: () => City(
+                                            id: '',
+                                            name: 'غير محدد',
+                                            createdAt: DateTime.now(),
+                                            updatedAt: DateTime.now(),
+                                          ),
+                                        ).name,
+                                        style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Icon(Icons.category, size: 16, color: Colors.grey[600]),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        _category.firstWhere(
+                                          (category) => category.id == ad['category_id'],
+                                          orElse: () => Category(id: '', name: 'غير محدد'),
+                                        ).name ?? 'غير محدد',
+                                        style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => AdDetailsScreen(ad: ad),
+                                  ),
+                                );
+                              },
                             ),
                           );
                         },
@@ -475,32 +369,29 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ],
             ),
-            AddAdScreen(),
-            MyAdsScreen(),
+            const MyAdsScreen(),
+            const AddAdScreen(),
           ],
         ),
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: _selectedIndex,
-          onDestinationSelected: (index) {
+        bottomNavigationBar: BottomNavigationBar(
+          currentIndex: _selectedIndex,
+          onTap: (index) {
             setState(() {
               _selectedIndex = index;
             });
           },
-          destinations: [
-            NavigationDestination(
-              icon: Icon(Icons.home_outlined, color: Colors.grey),
-              selectedIcon: Icon(Icons.home, color: Colors.green),
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.home),
               label: 'الرئيسية',
             ),
-            NavigationDestination(
-              icon: Icon(Icons.add_circle_outline, color: Colors.grey),
-              selectedIcon: Icon(Icons.add_circle, color: Colors.green),
-              label: 'إضافة إعلان',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.list_alt_outlined, color: Colors.grey),
-              selectedIcon: Icon(Icons.list_alt, color: Colors.green),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.list),
               label: 'إعلاناتي',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.add_circle_outline),
+              label: 'إضافة إعلان',
             ),
           ],
         ),
@@ -508,30 +399,12 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  String _formatPrice(int price) {
+  String _formatPrice(num price) {
     if (price >= 1000000) {
       return '${(price / 1000000).toStringAsFixed(1)} مليون';
     } else if (price >= 1000) {
       return '${(price / 1000).toStringAsFixed(1)} ألف';
     }
     return price.toString();
-  }
-
-  String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final difference = now.difference(date);
-
-    if (difference.inDays == 0) {
-      if (difference.inHours == 0) {
-        return 'قبل ${difference.inMinutes} دقيقة';
-      }
-      return 'قبل ${difference.inHours} ساعة';
-    } else if (difference.inDays == 1) {
-      return 'بالأمس';
-    } else if (difference.inDays < 7) {
-      return 'قبل ${difference.inDays} أيام';
-    } else {
-      return '${date.day}/${date.month}/${date.year}';
-    }
   }
 }

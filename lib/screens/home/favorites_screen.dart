@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/constants.dart';
 import 'ad_details_screen.dart';
+import '../../models/ad_model.dart';
 
 class FavoritesScreen extends StatelessWidget {
   const FavoritesScreen({super.key});
@@ -15,11 +16,12 @@ class FavoritesScreen extends StatelessWidget {
       return const Center(child: Text('الرجاء تسجيل الدخول'));
     }
 
-    return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection(AppConstants.favoritesCollection)
-          .doc(user.uid)
-          .snapshots(),
+    return StreamBuilder<Map<String, dynamic>>(
+      stream: Supabase.instance.client
+          .from('favorites')
+          .stream(primaryKey: ['user_id'])
+          .eq('user_id', user.id)
+          .map((event) => event.first),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Center(child: Text('حدث خطأ: ${snapshot.error}'));
@@ -29,18 +31,18 @@ class FavoritesScreen extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
 
-        final data = snapshot.data?.data() as Map<String, dynamic>?;
+        final data = snapshot.data;
         final favoriteAds = data?['ads'] as List<dynamic>? ?? [];
 
         if (favoriteAds.isEmpty) {
           return const Center(child: Text('لا توجد إعلانات في المفضلة'));
         }
 
-        return StreamBuilder<QuerySnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection(AppConstants.adsCollection)
-              .where(FieldPath.documentId, whereIn: favoriteAds)
-              .snapshots(),
+        return StreamBuilder<List<Map<String, dynamic>>>(
+          stream: Supabase.instance.client
+              .from('ads')
+              .stream(primaryKey: ['id'])
+              .eq('id', favoriteAds.first),
           builder: (context, snapshot) {
             if (snapshot.hasError) {
               return Center(child: Text('حدث خطأ: ${snapshot.error}'));
@@ -50,7 +52,7 @@ class FavoritesScreen extends StatelessWidget {
               return const Center(child: CircularProgressIndicator());
             }
 
-            final ads = snapshot.data!.docs;
+            final ads = snapshot.data ?? [];
 
             if (ads.isEmpty) {
               return const Center(child: Text('لا توجد إعلانات في المفضلة'));
@@ -63,7 +65,7 @@ class FavoritesScreen extends StatelessWidget {
                 return Card(
                   margin: const EdgeInsets.all(8.0),
                   child: ListTile(
-                    leading: ad['images'] != null && ad['images'].isNotEmpty
+                    leading: ad['images'] != null && (ad['images'] as List).isNotEmpty
                         ? Image.network(
                             ad['images'][0],
                             width: 50,
@@ -77,7 +79,9 @@ class FavoritesScreen extends StatelessWidget {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => AdDetailsScreen(ad: ad),
+                          builder: (context) => AdDetailsScreen(
+                            ad: ad,
+                          ),
                         ),
                       );
                     },

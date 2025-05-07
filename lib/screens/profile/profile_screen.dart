@@ -80,7 +80,7 @@ class ProfileScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        user.uid,
+                        user.id,
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.grey[600],

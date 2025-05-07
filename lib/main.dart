@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:firebase_core/firebase_core.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:provider/provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'providers/auth_provider.dart';
 import 'providers/theme_provider.dart';
-import 'package:firebase_app_check/firebase_app_check.dart';
 import 'utils/constants.dart';
 import 'utils/navigation_helper.dart';
 
@@ -14,16 +13,12 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   try {
-    await Firebase.initializeApp();
-    
-    // Firebase App Check'i yapılandır
-    await FirebaseAppCheck.instance.activate(
-      webProvider: ReCaptchaV3Provider('6Ld3XZUpAAAAANXQZQZQZQZQZQZQZQZQZQZQZQZQ'), // Placeholder token
-      androidProvider: AndroidProvider.debug,
-      appleProvider: AppleProvider.appAttest,
+    await Supabase.initialize(
+      url: 'https://nyezeglshvbajjhweguc.supabase.co',
+      anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im55ZXplZ2xzaHZiYWpqaHdlZ3VjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY1MTUxNDQsImV4cCI6MjA2MjA5MTE0NH0.U3dpUnU2TH784nWwLy_eLTuWDe1MeTAqKW1pXBcbRyY',
     );
   } catch (e) {
-    debugPrint('Firebase başlatma hatası: $e');
+    debugPrint('Supabase başlatma hatası: $e');
   }
 
   runApp(const MyApp());

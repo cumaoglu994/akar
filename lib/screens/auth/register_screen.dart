@@ -3,7 +3,6 @@ import 'dart:typed_data';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:akar/Controller/auth_controller.dart';
 import 'package:akar/screens/auth/login_screen.dart';
 import 'package:akar/utils/show_snackbar.dart';
 import 'package:provider/provider.dart';
@@ -19,7 +18,6 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  final AuthController _authController = AuthController();
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
@@ -50,10 +48,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
             _nameController.text.trim(),
             _phoneController.text.trim(),
           );
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('تم إنشاء الحساب بنجاح'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        NavigationHelper.pushReplacement(
+          context,
+          const LoginScreen(),
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString())),
+          SnackBar(
+            content: Text(e.toString()),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } finally {
@@ -61,20 +75,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
         setState(() => _isLoading = false);
       }
     }
-  }
-
-  selectGalleryImage() async {
-    Uint8List im = await _authController.pickProfileImage(ImageSource.gallery);
-    setState(() {
-      _image = im;
-    });
-  }
-
-  selectCamerasImage() async {
-    Uint8List im = await _authController.pickProfileImage(ImageSource.camera);
-    setState(() {
-      _image = im;
-    });
   }
 
   @override

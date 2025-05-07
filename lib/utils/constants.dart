@@ -1,19 +1,19 @@
 class AppConstants {
   static const String appName = 'بيع واشتري';
   
-  // Firebase Collections
-  static const String usersCollection = 'users';
-  static const String adsCollection = 'ads';
-  static const String chatsCollection = 'chats';
-  static const String messagesCollection = 'messages';
-  static const String favoritesCollection = 'favorites';
+  // Supabase Tables
+  static const String usersTable = 'users';
+  static const String adsTable = 'ads';
+  static const String chatsTable = 'chats';
+  static const String messagesTable = 'messages';
+  static const String favoritesTable = 'favorites';
   
-  // Storage Paths
-  static const String adsImagesPath = 'ads_images';
-  static const String profileImagesPath = 'profile_images';
+  // Storage Buckets
+  static const String adsImagesBucket = 'ads_images';
+  static const String profileImagesBucket = 'profile_images';
   
   // Categories
-  static const List<String> categories = [
+  static const List<String> category = [
     'سيارات',
     'عقارات',
     'إلكترونيات',
@@ -26,8 +26,8 @@ class AppConstants {
     'أخرى',
   ];
   
-  // Cities
-  static const List<String> cities = [
+  // city
+  static const List<String> city = [
     'دمشق',
     'حلب',
     'حمص',

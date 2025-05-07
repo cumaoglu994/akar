@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-
-import '../../utils/constants.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'ad_details_screen.dart';
+import '../../models/ad_model.dart';
+import '../../services/home_service.dart';
+import '../../models/category_model.dart';
+import '../../models/location_models.dart';
 
 class AdsListScreen extends StatefulWidget {
   const AdsListScreen({super.key});
@@ -15,6 +17,26 @@ class _AdsListScreenState extends State<AdsListScreen> {
   String _selectedCategory = 'الكل';
   String _selectedCity = 'الكل';
   final TextEditingController _searchController = TextEditingController();
+  List<Category> _categories = [];
+  List<City> _cities = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    final homeService = HomeService(Supabase.instance.client);
+    final categories = await homeService.getCategory();
+    final cities = await homeService.getCity();
+    setState(() {
+      _categories = categories;
+      _cities = cities;
+      _isLoading = false;
+    });
+  }
 
   @override
   void dispose() {
@@ -56,12 +78,16 @@ class _AdsListScreenState extends State<AdsListScreen> {
                   decoration: const InputDecoration(
                     border: OutlineInputBorder(),
                   ),
-                  items: ['الكل', ...AppConstants.categories]
-                      .map((category) => DropdownMenuItem(
-                            value: category,
-                            child: Text(category),
-                          ))
-                      .toList(),
+                  items: [
+                    const DropdownMenuItem<String>(
+                      value: 'الكل',
+                      child: Text('الكل'),
+                    ),
+                    ..._categories.map((category) => DropdownMenuItem<String>(
+                          value: category.id ?? '',
+                          child: Text(category.name ?? ''),
+                        ))
+                  ],
                   onChanged: (value) {
                     setState(() {
                       _selectedCategory = value!;
@@ -76,12 +102,16 @@ class _AdsListScreenState extends State<AdsListScreen> {
                   decoration: const InputDecoration(
                     border: OutlineInputBorder(),
                   ),
-                  items: ['الكل', ...AppConstants.cities]
-                      .map((city) => DropdownMenuItem(
-                            value: city,
-                            child: Text(city),
-                          ))
-                      .toList(),
+                  items: [
+                    const DropdownMenuItem<String>(
+                      value: 'الكل',
+                      child: Text('الكل'),
+                    ),
+                    ..._cities.map((city) => DropdownMenuItem<String>(
+                          value: city.id,
+                          child: Text(city.name),
+                        ))
+                  ],
                   onChanged: (value) {
                     setState(() {
                       _selectedCity = value!;
@@ -93,10 +123,11 @@ class _AdsListScreenState extends State<AdsListScreen> {
           ),
         ),
         Expanded(
-          child: StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection(AppConstants.adsCollection)
-                .snapshots(),
+          child: StreamBuilder<List<Map<String, dynamic>>>(
+            stream: Supabase.instance.client
+                .from('ads')
+                .stream(primaryKey: ['id'])
+                .order('created_at', ascending: false),
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 return Center(child: Text('حدث خطأ: ${snapshot.error}'));
@@ -106,24 +137,24 @@ class _AdsListScreenState extends State<AdsListScreen> {
                 return const Center(child: CircularProgressIndicator());
               }
 
-              var ads = snapshot.data!.docs;
+              var ads = snapshot.data ?? [];
               
               // Apply filters
               if (_selectedCategory != 'الكل') {
-                ads = ads.where((doc) => 
-                  doc['category'] == _selectedCategory).toList();
+                ads = ads.where((ad) => 
+                  ad['category'] == _selectedCategory).toList();
               }
               
               if (_selectedCity != 'الكل') {
-                ads = ads.where((doc) => 
-                  doc['city'] == _selectedCity).toList();
+                ads = ads.where((ad) => 
+                  ad['city'] == _selectedCity).toList();
               }
               
               if (_searchController.text.isNotEmpty) {
-                ads = ads.where((doc) => 
-                  doc['title'].toString().toLowerCase()
+                ads = ads.where((ad) => 
+                  ad['title'].toString().toLowerCase()
                     .contains(_searchController.text.toLowerCase()) ||
-                  doc['description'].toString().toLowerCase()
+                  ad['description'].toString().toLowerCase()
                     .contains(_searchController.text.toLowerCase())
                 ).toList();
               }
@@ -139,7 +170,7 @@ class _AdsListScreenState extends State<AdsListScreen> {
                   return Card(
                     margin: const EdgeInsets.all(8.0),
                     child: ListTile(
-                      leading: ad['images'] != null && ad['images'].isNotEmpty
+                      leading: ad['images'] != null && (ad['images'] as List).isNotEmpty
                           ? Image.network(
                               ad['images'][0],
                               width: 50,
@@ -153,7 +184,9 @@ class _AdsListScreenState extends State<AdsListScreen> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => AdDetailsScreen(ad: ad),
+                            builder: (context) => AdDetailsScreen(
+                              ad: ad,
+                            ),
                           ),
                         );
                       },
