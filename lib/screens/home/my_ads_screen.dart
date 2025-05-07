@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/constants.dart';
+
 
 class MyAdsScreen extends StatelessWidget {
   const MyAdsScreen({super.key});
@@ -14,12 +15,12 @@ class MyAdsScreen extends StatelessWidget {
       return const Center(child: Text('يرجى تسجيل الدخول'));
     }
 
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection(AppConstants.adsCollection)
-          .where('userId', isEqualTo: user.uid)
-          .orderBy('createdAt', descending: true)
-          .snapshots(),
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: Supabase.instance.client
+          .from(AppConstants.adsTable)
+          .stream(primaryKey: ['id'])
+          .eq('user_id', user.id)
+          .order('created_at', ascending: false),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Center(child: Text('حدث خطأ: ${snapshot.error}'));
@@ -29,7 +30,7 @@ class MyAdsScreen extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
 
-        final ads = snapshot.data?.docs ?? [];
+        final ads = snapshot.data ?? [];
 
         if (ads.isEmpty) {
           return Center(
@@ -53,7 +54,7 @@ class MyAdsScreen extends StatelessWidget {
           padding: const EdgeInsets.all(8),
           itemCount: ads.length,
           itemBuilder: (context, index) {
-            final ad = ads[index].data() as Map<String, dynamic>;
+            final ad = ads[index];
             return Card(
               margin: const EdgeInsets.only(bottom: 8),
               child: Padding(
@@ -63,7 +64,7 @@ class MyAdsScreen extends StatelessWidget {
                   children: [
                     ClipRRect(
                       borderRadius: BorderRadius.circular(8),
-                      child: ad['images'] != null && ad['images'].isNotEmpty
+                      child: ad['images'] != null && (ad['images'] as List).isNotEmpty
                           ? Image.network(
                               ad['images'][0],
                               width: 80,
@@ -118,7 +119,7 @@ class MyAdsScreen extends StatelessWidget {
                                   Icon(Icons.location_on, size: 16, color: Colors.grey[600]),
                                   const SizedBox(width: 4),
                                   Text(
-                                    ad['city'] ?? '',
+                                    (ad['city'] ?? '').toString(),
                                     style: TextStyle(color: Colors.grey[600], fontSize: 12),
                                   ),
                                 ],
@@ -129,7 +130,7 @@ class MyAdsScreen extends StatelessWidget {
                                   Icon(Icons.category, size: 16, color: Colors.grey[600]),
                                   const SizedBox(width: 4),
                                   Text(
-                                    ad['category'] ?? '',
+                                    (ad['category'] ?? '').toString(),
                                     style: TextStyle(color: Colors.grey[600], fontSize: 12),
                                   ),
                                 ],
@@ -152,7 +153,9 @@ class MyAdsScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '${DateTime.now().difference((ad['createdAt'] as Timestamp).toDate()).inDays} يوم',
+                          ad['created_at'] != null
+                              ? '${DateTime.now().difference(DateTime.parse(ad['created_at'])).inDays} يوم'
+                              : '-',
                           style: TextStyle(
                             color: Colors.grey[600],
                             fontSize: 12,

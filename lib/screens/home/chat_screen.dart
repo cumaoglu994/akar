@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/constants.dart';
@@ -39,32 +39,37 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _initializeChat() async {
     final user = context.read<AuthProvider>().user;
     if (user != null) {
-      final buyerId = user.uid;
+      final buyerId = user.id;
       final sellerId = widget.sellerId;
       
       // Create a unique chat ID by combining buyer and seller IDs
-      _chatId = buyerId.compareTo(sellerId) < 0
+      final chatId = buyerId.compareTo(sellerId) < 0
           ? '$buyerId-$sellerId-${widget.adId}'
           : '$sellerId-$buyerId-${widget.adId}';
       
       // Check if chat exists, if not create it
-      final chatDoc = await FirebaseFirestore.instance
-          .collection(AppConstants.chatsCollection)
-          .doc(_chatId)
-          .get();
+      final response = await Supabase.instance.client
+          .from('chats')
+          .select()
+          .eq('id', chatId)
+          .single();
       
-      if (!chatDoc.exists) {
-        await FirebaseFirestore.instance
-            .collection(AppConstants.chatsCollection)
-            .doc(_chatId)
-            .set({
-          'buyerId': buyerId,
-          'sellerId': sellerId,
-          'adId': widget.adId,
-          'lastMessage': '',
-          'lastMessageTime': FieldValue.serverTimestamp(),
-        });
+      if (response == null) {
+        await Supabase.instance.client
+            .from('chats')
+            .insert({
+              'id': chatId,
+              'buyer_id': buyerId,
+              'seller_id': sellerId,
+              'ad_id': widget.adId,
+              'last_message': '',
+              'last_message_time': DateTime.now().toIso8601String(),
+            });
       }
+
+      setState(() {
+        _chatId = chatId;
+      });
     }
   }
 
@@ -73,23 +78,23 @@ class _ChatScreenState extends State<ChatScreen> {
 
     final user = context.read<AuthProvider>().user;
     if (user != null) {
-      await FirebaseFirestore.instance
-          .collection(AppConstants.chatsCollection)
-          .doc(_chatId)
-          .collection(AppConstants.messagesCollection)
-          .add({
-        'senderId': user.uid,
-        'message': _messageController.text.trim(),
-        'timestamp': FieldValue.serverTimestamp(),
-      });
+      final chatId = _chatId!;
+      await Supabase.instance.client
+          .from('messages')
+          .insert({
+            'chat_id': chatId,
+            'sender_id': user.id,
+            'message': _messageController.text.trim(),
+            'timestamp': DateTime.now().toIso8601String(),
+          });
 
-      await FirebaseFirestore.instance
-          .collection(AppConstants.chatsCollection)
-          .doc(_chatId)
+      await Supabase.instance.client
+          .from('chats')
           .update({
-        'lastMessage': _messageController.text.trim(),
-        'lastMessageTime': FieldValue.serverTimestamp(),
-      });
+            'last_message': _messageController.text.trim(),
+            'last_message_time': DateTime.now().toIso8601String(),
+          })
+          .eq('id', chatId);
 
       _messageController.clear();
       _scrollToBottom();
@@ -115,6 +120,8 @@ class _ChatScreenState extends State<ChatScreen> {
       );
     }
 
+    final chatId = _chatId!;
+
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
@@ -124,13 +131,12 @@ class _ChatScreenState extends State<ChatScreen> {
         body: Column(
           children: [
             Expanded(
-              child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection(AppConstants.chatsCollection)
-                    .doc(_chatId)
-                    .collection(AppConstants.messagesCollection)
-                    .orderBy('timestamp', descending: false)
-                    .snapshots(),
+              child: StreamBuilder<List<Map<String, dynamic>>>(
+                stream: Supabase.instance.client
+                    .from('messages')
+                    .stream(primaryKey: ['id'])
+                    .eq('chat_id', chatId)
+                    .order('timestamp'),
                 builder: (context, snapshot) {
                   if (snapshot.hasError) {
                     return Center(child: Text('حدث خطأ: ${snapshot.error}'));
@@ -140,14 +146,14 @@ class _ChatScreenState extends State<ChatScreen> {
                     return const Center(child: CircularProgressIndicator());
                   }
 
-                  final messages = snapshot.data!.docs;
+                  final messages = snapshot.data ?? [];
 
                   return ListView.builder(
                     controller: _scrollController,
                     itemCount: messages.length,
                     itemBuilder: (context, index) {
                       final message = messages[index];
-                      final isMe = message['senderId'] == user.uid;
+                      final isMe = message['sender_id'] == user.id;
 
                       return Align(
                         alignment: isMe

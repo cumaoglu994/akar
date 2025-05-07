@@ -1,11 +1,12 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/constants.dart';
-import '../../utils/navigation_helper.dart';
+import '../../services/home_service.dart';
+import '../../models/category_model.dart';
 
 class AddAdScreen extends StatefulWidget {
   const AddAdScreen({super.key});
@@ -19,10 +20,36 @@ class _AddAdScreenState extends State<AddAdScreen> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _priceController = TextEditingController();
-  String _selectedCity = AppConstants.cities[0];
-  String _selectedCategory = AppConstants.categories[0];
+  String _selectedCity = AppConstants.city[0];
+  String? _selectedCategory;
   List<File> _images = [];
   bool _isLoading = false;
+  List<Category> _categories = [];
+  final HomeService _homeService = HomeService(Supabase.instance.client);
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCategories();
+  }
+
+  Future<void> _loadCategories() async {
+    try {
+      final categories = await _homeService.getCategory();
+      setState(() {
+        _categories = categories;
+        if (categories.isNotEmpty) {
+          _selectedCategory = categories[0].id;
+        }
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('خطأ في تحميل الفئات: $e')),
+        );
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -34,13 +61,55 @@ class _AddAdScreenState extends State<AddAdScreen> {
 
   Future<void> _pickImages() async {
     final ImagePicker picker = ImagePicker();
-    final List<XFile> pickedFiles = await picker.pickMultiImage();
     
-    if (pickedFiles.isNotEmpty) {
-      setState(() {
-        _images.addAll(pickedFiles.map((file) => File(file.path)));
-      });
-    }
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Wrap(
+            children: <Widget>[
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('اختيار من المعرض'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final List<XFile> pickedFiles = await picker.pickMultiImage();
+                  if (pickedFiles.isNotEmpty) {
+                    setState(() {
+                      _images.addAll(pickedFiles.map((file) => File(file.path)));
+                    });
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('التقط صورة'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final XFile? photo = await picker.pickImage(source: ImageSource.camera);
+                  if (photo != null) {
+                    setState(() {
+                      _images.add(File(photo.path));
+                    });
+                  }
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<String> _uploadImage(File image) async {
+    final fileName = '${DateTime.now().millisecondsSinceEpoch}_${image.path.split('/').last}';
+    final response = await Supabase.instance.client.storage
+        .from('ads_images')
+        .upload(fileName, image);
+    
+    return Supabase.instance.client.storage
+        .from('ads_images')
+        .getPublicUrl(fileName);
   }
 
   Future<void> _submitAd() async {
@@ -58,30 +127,32 @@ class _AddAdScreenState extends State<AddAdScreen> {
       final user = context.read<AuthProvider>().user;
       if (user == null) throw Exception('يجب تسجيل الدخول أولاً');
 
-      // Resimleri yükle ve URL'leri al
+      // Upload images and get URLs
       final List<String> imageUrls = [];
       for (var image in _images) {
-        // TODO: Resimleri Firebase Storage'a yükle ve URL'leri al
-        // imageUrls.add(await _uploadImage(image));
+        imageUrls.add(await _uploadImage(image));
       }
 
-      // İlanı Firestore'a kaydet
-      await FirebaseFirestore.instance.collection(AppConstants.adsCollection).add({
+      // Save ad to Supabase
+      await Supabase.instance.client.from('ads').insert({
         'title': _titleController.text,
         'description': _descriptionController.text,
         'price': int.parse(_priceController.text),
         'city': _selectedCity,
-        'category': _selectedCategory,
+        'category_id': _selectedCategory,
         'images': imageUrls,
-        'userId': user.uid,
-        'createdAt': FieldValue.serverTimestamp(),
+        'user_id': user.id,
+        'created_at': DateTime.now().toIso8601String(),
       });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('تم إضافة الإعلان بنجاح')),
         );
-        NavigationHelper.pop(context);
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          '/home',
+          (route) => false,
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -164,7 +235,7 @@ class _AddAdScreenState extends State<AddAdScreen> {
                     labelText: 'المدينة',
                     border: OutlineInputBorder(),
                   ),
-                  items: AppConstants.cities.map((city) {
+                  items: AppConstants.city.map((city) {
                     return DropdownMenuItem<String>(
                       value: city,
                       child: Text(city),
@@ -178,15 +249,15 @@ class _AddAdScreenState extends State<AddAdScreen> {
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
-                  value: _selectedCategory,
+                  value: _selectedCategory ?? '',
                   decoration: const InputDecoration(
                     labelText: 'الفئة',
                     border: OutlineInputBorder(),
                   ),
-                  items: AppConstants.categories.map((category) {
+                  items: _categories.map((category) {
                     return DropdownMenuItem<String>(
-                      value: category,
-                      child: Text(category),
+                      value: category.id ?? '',
+                      child: Text(category.name ?? ''),
                     );
                   }).toList(),
                   onChanged: (value) {
