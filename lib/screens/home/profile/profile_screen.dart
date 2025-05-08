@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../providers/auth_provider.dart';
-import '../../utils/constants.dart';
-import '../../screens/auth/login_screen.dart';
+import '../../../providers/auth_provider.dart';
+import '../../../utils/constants.dart';
+import '../../auth/login_screen.dart';
+import 'profile_details_screen.dart';
+import 'language_screen.dart';
+import 'notifications_screen.dart';
+import 'privacy_policy_screen.dart';
+import 'help_support_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -14,9 +19,7 @@ class ProfileScreen extends StatelessWidget {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('الملف الشخصي'),
-        ),
+       
         body: ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -80,10 +83,10 @@ class ProfileScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        user.id,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[600],
+                        user.phone ?? 'غير مسجل الدخول',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ],
@@ -98,21 +101,46 @@ class ProfileScreen extends StatelessWidget {
                 child: Column(
                   children: [
                     ListTile(
+                      leading: const Icon(Icons.person),
+                      title: const Text('الملف الشخصي'),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ProfileDetailsScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    const Divider(height: 1),
+
+                    ListTile(
                       leading: const Icon(Icons.language),
                       title: const Text('اللغة'),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                       onTap: () {
-                        // TODO: Implement language selection
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const LanguageScreen(),
+                          ),
+                        );
                       },
                     ),
                     const Divider(height: 1),
                     ListTile(
                       leading: const Icon(Icons.notifications),
                       title: const Text('الإشعارات'),
-                      trailing: Switch(
-                        value: true, // TODO: Implement notification settings
-                        onChanged: (value) {},
-                      ),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const NotificationsScreen(),
+                          ),
+                        );
+                      },
                     ),
                     const Divider(height: 1),
                     ListTile(
@@ -120,7 +148,12 @@ class ProfileScreen extends StatelessWidget {
                       title: const Text('سياسة الخصوصية'),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                       onTap: () {
-                        // TODO: Show privacy policy
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const PrivacyPolicyScreen(),
+                          ),
+                        );
                       },
                     ),
                     const Divider(height: 1),
@@ -129,7 +162,12 @@ class ProfileScreen extends StatelessWidget {
                       title: const Text('المساعدة والدعم'),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                       onTap: () {
-                        // TODO: Show help and support
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const HelpSupportScreen(),
+                          ),
+                        );
                       },
                     ),
                   ],
