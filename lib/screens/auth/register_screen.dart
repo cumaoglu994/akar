@@ -1,6 +1,5 @@
 import 'dart:typed_data';
 
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:akar/screens/auth/login_screen.dart';
@@ -137,7 +136,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.grey[300]!),
+                          borderSide: const BorderSide(color: Colors.grey),
                         ),
                       ),
                       validator: (value) {
@@ -160,7 +159,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.grey[300]!),
+                          borderSide: const BorderSide(color: Colors.grey),
                         ),
                       ),
                       validator: (value) {
@@ -186,7 +185,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.grey[300]!),
+                          borderSide: const BorderSide(color: Colors.grey),
                         ),
                       ),
                       validator: (value) {
@@ -217,7 +216,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.grey[300]!),
+                          borderSide: const BorderSide(color: Colors.grey),
                         ),
                       ),
                       validator: (value) {

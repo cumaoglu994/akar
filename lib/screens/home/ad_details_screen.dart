@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:card_swiper/card_swiper.dart';
 import 'chat_screen.dart';
-import '../../models/ad_model.dart';
 
 class AdDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> ad;

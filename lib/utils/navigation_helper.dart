@@ -37,7 +37,7 @@ class NavigationHelper {
 class _NavigationObserver extends NavigatorObserver {
   @override
   void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
-     debugPrint('\x1B[33mPushed: \\${route.settings.name}\x1B[0m');
+    debugPrint('\x1B[33mPushed: ${route.settings.name}\x1B[0m');
   }
 
   @override

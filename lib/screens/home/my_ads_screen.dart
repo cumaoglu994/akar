@@ -3,10 +3,24 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/constants.dart';
+import 'ad_details_screen.dart';
 
-
-class MyAdsScreen extends StatelessWidget {
+class MyAdsScreen extends StatefulWidget {
   const MyAdsScreen({super.key});
+
+  @override
+  State<MyAdsScreen> createState() => _MyAdsScreenState();
+}
+
+class _MyAdsScreenState extends State<MyAdsScreen> {
+  final _refreshKey = GlobalKey<RefreshIndicatorState>();
+
+  Future<void> _refreshData() async {
+    setState(() {});
+    await Future.delayed(const Duration(milliseconds: 500));
+  }
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -50,135 +64,148 @@ class MyAdsScreen extends StatelessWidget {
           );
         }
 
-        return ListView.builder(
-          padding: const EdgeInsets.all(8),
-          itemCount: ads.length,
-          itemBuilder: (context, index) {
-            final ad = ads[index];
-            return Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: ad['images'] != null && (ad['images'] as List).isNotEmpty
-                          ? Image.network(
-                              ad['images'][0],
-                              width: 80,
-                              height: 80,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return Container(
-                                  width: 80,
-                                  height: 80,
-                                  color: Colors.grey[200],
-                                  child: const Icon(Icons.image, size: 40),
-                                );
-                              },
-                            )
-                          : Container(
-                              width: 80,
-                              height: 80,
-                              color: Colors.grey[200],
-                              child: const Icon(Icons.image, size: 40),
-                            ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            ad['title'] ?? '',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            ad['description'] ?? '',
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 14,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 4,
-                            children: [
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.location_on, size: 16, color: Colors.grey[600]),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    (ad['city'] ?? '').toString(),
-                                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                                  ),
-                                ],
-                              ),
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.category, size: 16, color: Colors.grey[600]),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    (ad['category'] ?? '').toString(),
-                                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          '${_formatPrice(ad['price'] ?? 0)} ل.س',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.green,
-                            fontSize: 16,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          ad['created_at'] != null
-                              ? '${DateTime.now().difference(DateTime.parse(ad['created_at'])).inDays} يوم'
-                              : '-',
-                          style: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+        return RefreshIndicator(
+          key: _refreshKey,
+          onRefresh: _refreshData,
+          child: ListView.builder(
+            itemCount: ads.length,
+            itemBuilder: (context, index) {
+              final ad = ads[index];
+              return Card(
+                margin: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 4,
                 ),
-              ),
-            );
-          },
+                child: ListTile(
+                  leading: ad['images'] != null && (ad['images'] as List).isNotEmpty
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(
+                            ad['images'][0].toString(),
+                            width: 60,
+                            height: 60,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                width: 60,
+                                height: 60,
+                                color: Colors.grey[300],
+                                child: const Icon(Icons.image_not_supported),
+                              );
+                            },
+                          ),
+                        )
+                      : Container(
+                          width: 60,
+                          height: 60,
+                          color: Colors.grey[300],
+                          child: const Icon(Icons.image_not_supported),
+                        ),
+                  title: Text(ad['title']?.toString() ?? ''),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(ad['price']?.toString() ?? ''),
+                      Text(ad['city']?.toString() ?? ''),
+                    ],
+                  ),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.delete, color: Colors.red),
+                    onPressed: () async {
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: const Text('تأكيد الحذف'),
+                          content: const Text('هل أنت متأكد من حذف هذا الإعلان؟'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, false),
+                              child: const Text('إلغاء'),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, true),
+                              child: const Text('حذف'),
+                            ),
+                          ],
+                        ),
+                      );
+
+                      if (confirmed == true) {
+                        showDialog(
+                          context: context,
+                          barrierDismissible: false,
+                          builder: (context) => const Center(
+                            child: CircularProgressIndicator(),
+                          ),
+                        );
+
+                        try {
+                          if (ad['images'] != null && (ad['images'] as List).isNotEmpty) {
+                            for (var imageUrl in ad['images']) {
+                              try {
+                                final imagePath = imageUrl.toString().split('/').last;
+                                await Supabase.instance.client.storage
+                                    .from(AppConstants.adsImagesBucket)
+                                    .remove([imagePath]);
+                              } catch (e) {
+                                debugPrint('خطأ في حذف الصورة: $e');
+                              }
+                            }
+                          }
+
+                          final response = await Supabase.instance.client
+                              .from(AppConstants.adsTable)
+                              .delete()
+                              .eq('id', ad['id'].toString())
+                              .select();
+
+                          // Yükleme dialogunu kapat
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                          }
+
+                          if (response != null && response.isNotEmpty) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('تم حذف الإعلان بنجاح'),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+                              _refreshKey.currentState?.show();
+                            }
+                          } else {
+                            throw Exception('فشل حذف الإعلان');
+                          }
+                        } catch (e) {
+                          // Yükleme dialogunu kapat
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('حدث خطأ أثناء حذف الإعلان: $e'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        }
+                      }
+                    },
+                  ),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => AdDetailsScreen(ad: ad),
+                      ),
+                    );
+                  },
+                ),
+              );
+            },
+          ),
         );
       },
     );
-  }
-
-  String _formatPrice(int price) {
-    if (price >= 1000000) {
-      return '${(price / 1000000).toStringAsFixed(1)} مليون';
-    } else if (price >= 1000) {
-      return '${(price / 1000).toStringAsFixed(1)} ألف';
-    }
-    return price.toString();
   }
 } 

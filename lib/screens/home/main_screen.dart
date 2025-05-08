@@ -2,10 +2,35 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../utils/constants.dart';
 import '../../services/home_service.dart';
-import '../../models/ad_model.dart';
-import '../../models/category_model.dart';
-import '../../models/location_models.dart';
 import 'ad_details_screen.dart';
+
+class City {
+  final String id;
+  final String name;
+
+  City({required this.id, required this.name});
+
+  factory City.fromJson(Map<String, dynamic> json) {
+    return City(
+      id: json['id'].toString(),
+      name: json['name'].toString(),
+    );
+  }
+}
+
+class Category {
+  final String id;
+  final String name;
+
+  Category({required this.id, required this.name});
+
+  factory Category.fromJson(Map<String, dynamic> json) {
+    return Category(
+      id: json['id'].toString(),
+      name: json['name'].toString(),
+    );
+  }
+}
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -16,15 +41,16 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   String _searchQuery = '';
-  String _selectedCity = 'الكل';
-  String _selectedCategory = 'الكل';
+  String _selectedCity = '1';
+  String _selectedCategory = '1';
   int? _minPrice;
   int? _maxPrice;
   bool _showFilters = false;
-  final HomeService _homeService = HomeService(Supabase.instance.client);
+  final HomeService _homeService = HomeService();
   List<City> _city = [];
   List<Category> _category = [];
   bool _isLoading = true;
+  final _refreshKey = GlobalKey<RefreshIndicatorState>();
 
   @override
   void initState() {
@@ -34,21 +60,52 @@ class _MainScreenState extends State<MainScreen> {
 
   Future<void> _loadData() async {
     try {
-      final city = await _homeService.getCity();
-      final category = await _homeService.getCategory();
-      setState(() {
-        _city = city;
-        _category = category;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() => _isLoading = false);
+      setState(() => _isLoading = true);
+
+      // Şehirleri yükle
+      final cityResponse = await Supabase.instance.client
+          .from('cities')
+          .select()
+          .order('id');
+
+      // Kategorileri yükle
+      final categoryResponse = await Supabase.instance.client
+          .from('categories')
+          .select()
+          .order('id');
+
       if (mounted) {
+        setState(() {
+          _city = (cityResponse as List).map((data) {
+            return City(
+              id: data['id'].toString(),
+              name: data['name'].toString(),
+            );
+          }).toList();
+
+          _category = (categoryResponse as List).map((data) {
+            return Category(
+              id: data['id'].toString(),
+              name: data['name'].toString(),
+            );
+          }).toList();
+
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('خطأ في تحميل البيانات: $e')),
         );
       }
     }
+  }
+
+  Future<void> _refreshData() async {
+    await _loadData();
+    setState(() {});
   }
 
   @override
@@ -108,57 +165,81 @@ class _MainScreenState extends State<MainScreen> {
                         Row(
                           children: [
                             Expanded(
-                              child: DropdownButtonFormField<String>(
-                                value: _selectedCity,
-                                decoration: const InputDecoration(
-                                  labelText: 'المدينة',
-                                  border: OutlineInputBorder(),
-                                ),
-                                items: [
-                                  const DropdownMenuItem<String>(
-                                    value: 'الكل',
-                                    child: Text('الكل'),
-                                  ),
-                                  ..._city.map((city) {
-                                    return DropdownMenuItem<String>(
-                                      value: city.id,
-                                      child: Text(city.name),
-                                    );
-                                  }).toList(),
-                                ],
-                                onChanged: (String? newValue) {
-                                  setState(() {
-                                    _selectedCity = newValue!;
-                                  });
-                                },
-                              ),
+                              child: _isLoading
+                                  ? const Center(child: CircularProgressIndicator())
+                                  : DropdownButtonFormField<String>(
+                                      value: _city.isNotEmpty ? _selectedCity : null,
+                                      decoration: const InputDecoration(
+                                        labelText: 'المدينة',
+                                        border: OutlineInputBorder(),
+                                        contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                                      ),
+                                      isExpanded: true,
+                                      icon: const Icon(Icons.arrow_drop_down),
+                                      dropdownColor: Colors.white,
+                                      style: const TextStyle(
+                                        color: Colors.black,
+                                        fontSize: 16,
+                                      ),
+                                      items: _city.map((city) {
+                                        return DropdownMenuItem<String>(
+                                          value: city.id,
+                                          child: Text(
+                                            city.name,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              color: Colors.black,
+                                            ),
+                                          ),
+                                        );
+                                      }).toList(),
+                                      onChanged: (String? newValue) {
+                                        if (newValue != null) {
+                                          setState(() {
+                                            _selectedCity = newValue;
+                                          });
+                                        }
+                                      },
+                                    ),
                             ),
                             const SizedBox(width: 16),
                             Expanded(
-                              child: DropdownButtonFormField<String>(
-                                value: _selectedCategory,
-                                decoration: const InputDecoration(
-                                  labelText: 'الفئة',
-                                  border: OutlineInputBorder(),
-                                ),
-                                items: [
-                                  const DropdownMenuItem<String>(
-                                    value: 'الكل',
-                                    child: Text('الكل'),
-                                  ),
-                                  ..._category.map((category) {
-                                    return DropdownMenuItem<String>(
-                                      value: category.id ?? '',
-                                      child: Text(category.name ?? ''),
-                                    );
-                                  }).toList(),
-                                ],
-                                onChanged: (String? newValue) {
-                                  setState(() {
-                                    _selectedCategory = newValue!;
-                                  });
-                                },
-                              ),
+                              child: _isLoading
+                                  ? const Center(child: CircularProgressIndicator())
+                                  : DropdownButtonFormField<String>(
+                                      value: _category.isNotEmpty ? _selectedCategory : null,
+                                      decoration: const InputDecoration(
+                                        labelText: 'الفئة',
+                                        border: OutlineInputBorder(),
+                                        contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                                      ),
+                                      isExpanded: true,
+                                      icon: const Icon(Icons.arrow_drop_down),
+                                      dropdownColor: Colors.white,
+                                      style: const TextStyle(
+                                        color: Colors.black,
+                                        fontSize: 16,
+                                      ),
+                                      items: _category.map((category) {
+                                        return DropdownMenuItem<String>(
+                                          value: category.id,
+                                          child: Text(
+                                            category.name,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              color: Colors.black,
+                                            ),
+                                          ),
+                                        );
+                                      }).toList(),
+                                      onChanged: (String? newValue) {
+                                        if (newValue != null) {
+                                          setState(() {
+                                            _selectedCategory = newValue;
+                                          });
+                                        }
+                                      },
+                                    ),
                             ),
                           ],
                         ),
@@ -204,141 +285,139 @@ class _MainScreenState extends State<MainScreen> {
           ),
         ),
         Expanded(
-          child: StreamBuilder<List<Map<String, dynamic>>>(
-            stream: Supabase.instance.client
-                .from(AppConstants.adsTable)
-                .stream(primaryKey: ['id'])
-                .order('created_at', ascending: false),
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
-                return Center(child: Text('حدث خطأ: ${snapshot.error}'));
-              }
+          child: RefreshIndicator(
+            key: _refreshKey,
+            onRefresh: _refreshData,
+            child: StreamBuilder<List<Map<String, dynamic>>>(
+              stream: Supabase.instance.client
+                  .from(AppConstants.adsTable)
+                  .stream(primaryKey: ['id'])
+                  .order('created_at', ascending: false),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Center(child: Text('حدث خطأ: ${snapshot.error}'));
+                }
 
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-              var ads = snapshot.data ?? [];
+                var ads = snapshot.data ?? [];
 
-              // Apply filters
-              if (_searchQuery.isNotEmpty) {
-                ads = ads.where((ad) => 
-                  (ad['title'] ?? '').toLowerCase().contains(_searchQuery.toLowerCase())
-                ).toList();
-              }
+                // Apply filters
+                if (_searchQuery.isNotEmpty) {
+                  ads = ads.where((ad) => 
+                    (ad['title'] ?? '').toLowerCase().contains(_searchQuery.toLowerCase())
+                  ).toList();
+                }
 
-              if (_selectedCity != 'الكل') {
-                ads = ads.where((ad) => ad['city_id'] == _selectedCity).toList();
-              }
+                if (_selectedCity != '1') {
+                  ads = ads.where((ad) => ad['city'] == _selectedCity).toList();
+                }
 
-              if (_selectedCategory != 'الكل') {
-                ads = ads.where((ad) => ad['category_id'] == _selectedCategory).toList();
-              }
+                if (_selectedCategory != '1') {
+                  ads = ads.where((ad) => ad['category'] == _selectedCategory).toList();
+                }
 
-              if (_minPrice != null) {
-                ads = ads.where((ad) => (ad['price'] ?? 0) >= _minPrice!).toList();
-              }
+                if (_minPrice != null) {
+                  ads = ads.where((ad) => (ad['price'] ?? 0) >= _minPrice!).toList();
+                }
 
-              if (_maxPrice != null) {
-                ads = ads.where((ad) => (ad['price'] ?? 0) <= _maxPrice!).toList();
-              }
+                if (_maxPrice != null) {
+                  ads = ads.where((ad) => (ad['price'] ?? 0) <= _maxPrice!).toList();
+                }
 
-              if (ads.isEmpty) {
-                return const Center(
-                  child: Text('لا توجد إعلانات'),
-                );
-              }
-
-              return ListView.builder(
-                itemCount: ads.length,
-                itemBuilder: (context, index) {
-                  final ad = ads[index];
-                  return Card(
-                    margin: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    child: ListTile(
-                      leading: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: ad['images'] != null && (ad['images'] as List).isNotEmpty
-                            ? Image.network(
-                                ad['images'][0],
-                                width: 60,
-                                height: 60,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Container(
-                                    width: 60,
-                                    height: 60,
-                                    color: Colors.grey[300],
-                                    child: const Icon(Icons.error),
-                                  );
-                                },
-                              )
-                            : Container(
-                                width: 60,
-                                height: 60,
-                                color: Colors.grey[300],
-                                child: const Icon(Icons.image),
-                              ),
-                      ),
-                      title: Text(ad['title'] ?? ''),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '${_formatPrice(ad['price'] ?? 0)} ل.س',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.green,
-                              fontSize: 16,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Icon(Icons.location_on, size: 16, color: Colors.grey[600]),
-                              const SizedBox(width: 4),
-                              Text(
-                                _city.firstWhere(
-                                  (city) => city.id == ad['city_id'],
-                                  orElse: () => City(
-                                    id: '',
-                                    name: 'غير محدد',
-                                    createdAt: DateTime.now(),
-                                    updatedAt: DateTime.now(),
-                                  ),
-                                ).name,
-                                style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                              ),
-                              const SizedBox(width: 8),
-                              Icon(Icons.category, size: 16, color: Colors.grey[600]),
-                              const SizedBox(width: 4),
-                              Text(
-                                _category.firstWhere(
-                                  (category) => category.id == ad['category_id'],
-                                  orElse: () => Category(id: '', name: 'غير محدد'),
-                                ).name ?? 'غير محدد',
-                                style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => AdDetailsScreen(ad: ad),
-                          ),
-                        );
-                      },
-                    ),
+                if (ads.isEmpty) {
+                  return const Center(
+                    child: Text('لا توجد إعلانات'),
                   );
-                },
-              );
-            },
+                }
+
+                return ListView.builder(
+                  itemCount: ads.length,
+                  itemBuilder: (context, index) {
+                    final ad = ads[index];
+                    return Card(
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      child: ListTile(
+                        leading: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: ad['images'] != null && (ad['images'] as List).isNotEmpty
+                              ? Image.network(
+                                  ad['images'][0],
+                                  width: 60,
+                                  height: 60,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return Container(
+                                      width: 60,
+                                      height: 60,
+                                      color: Colors.grey[300],
+                                      child: const Icon(Icons.error),
+                                    );
+                                  },
+                                )
+                              : Container(
+                                  width: 60,
+                                  height: 60,
+                                  color: Colors.grey[300],
+                                  child: const Icon(Icons.image),
+                                ),
+                        ),
+                        title: Text(ad['title'] ?? ''),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${_formatPrice(ad['price'] ?? 0)} ل.س',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green,
+                                fontSize: 16,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Icon(Icons.location_on, size: 16, color: Colors.grey[600]),
+                                const SizedBox(width: 4),
+                                Text(
+                                  ad['city'] ?? '',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.green,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                
+                                const SizedBox(width: 8),
+                                Icon(Icons.category, size: 16, color: Colors.grey[600]),
+                                const SizedBox(width: 4),
+                                  Text(
+                                    ad['category'] ?? '',
+                                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => AdDetailsScreen(ad: ad),
+                            ),
+                          );
+                        },
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
           ),
         ),
       ],

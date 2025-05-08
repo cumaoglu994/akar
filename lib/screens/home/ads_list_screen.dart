@@ -1,10 +1,8 @@
+import 'package:akar/services/home_service.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'ad_details_screen.dart';
-import '../../models/ad_model.dart';
-import '../../services/home_service.dart';
-import '../../models/category_model.dart';
-import '../../models/location_models.dart';
+import '../../utils/constants.dart';
 
 class AdsListScreen extends StatefulWidget {
   const AdsListScreen({super.key});
@@ -17,8 +15,8 @@ class _AdsListScreenState extends State<AdsListScreen> {
   String _selectedCategory = 'الكل';
   String _selectedCity = 'الكل';
   final TextEditingController _searchController = TextEditingController();
-  List<Category> _categories = [];
-  List<City> _cities = [];
+  List<dynamic> _categories = [];
+  List<dynamic> _cities = [];
   bool _isLoading = true;
 
   @override
@@ -28,8 +26,8 @@ class _AdsListScreenState extends State<AdsListScreen> {
   }
 
   Future<void> _loadData() async {
-    final homeService = HomeService(Supabase.instance.client);
-    final categories = await homeService.getCategory();
+    final homeService = HomeService();
+    final categories = await homeService.getCategories();
     final cities = await homeService.getCity();
     setState(() {
       _categories = categories;
@@ -48,76 +46,89 @@ class _AdsListScreenState extends State<AdsListScreen> {
   Widget build(BuildContext context) {
     return Column(
       children: [
+        // Search and Filter Bar
         Padding(
           padding: const EdgeInsets.all(8.0),
-          child: Row(
+          child: Column(
             children: [
-              Expanded(
-                child: TextField(
-                  controller: _searchController,
-                  decoration: const InputDecoration(
-                    hintText: 'ابحث عن إعلان',
-                    prefixIcon: Icon(Icons.search),
-                    border: OutlineInputBorder(),
+              TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: 'ابحث عن إعلان...',
+                  prefixIcon: const Icon(Icons.search),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  onChanged: (value) {
-                    setState(() {});
-                  },
+                  filled: true,
+                  fillColor: Colors.grey[100],
                 ),
+                onChanged: (value) {
+                  setState(() {});
+                },
               ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-          child: Row(
-            children: [
-              Expanded(
-                child: DropdownButtonFormField<String>(
-                  value: _selectedCategory,
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                  ),
-                  items: [
-                    const DropdownMenuItem<String>(
-                      value: 'الكل',
-                      child: Text('الكل'),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      value: _selectedCategory,
+                      decoration: InputDecoration(
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        filled: true,
+                        fillColor: Colors.grey[100],
+                      ),
+                      items: [
+                        const DropdownMenuItem(
+                          value: 'الكل',
+                          child: Text('كل الفئات'),
+                        ),
+                        ..._categories.map((category) {
+                          return DropdownMenuItem(
+                            value: category['name'],
+                            child: Text(category['name']),
+                          );
+                        }),
+                      ],
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedCategory = value!;
+                        });
+                      },
                     ),
-                    ..._categories.map((category) => DropdownMenuItem<String>(
-                          value: category.id ?? '',
-                          child: Text(category.name ?? ''),
-                        ))
-                  ],
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedCategory = value!;
-                    });
-                  },
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: DropdownButtonFormField<String>(
-                  value: _selectedCity,
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
                   ),
-                  items: [
-                    const DropdownMenuItem<String>(
-                      value: 'الكل',
-                      child: Text('الكل'),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      value: _selectedCity,
+                      decoration: InputDecoration(
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        filled: true,
+                        fillColor: Colors.grey[100],
+                      ),
+                      items: [
+                        const DropdownMenuItem(
+                          value: 'الكل',
+                          child: Text('كل المدن'),
+                        ),
+                        ..._cities.map((city) {
+                          return DropdownMenuItem(
+                            value: city['name'],
+                            child: Text(city['name']),
+                          );
+                        }),
+                      ],
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedCity = value!;
+                        });
+                      },
                     ),
-                    ..._cities.map((city) => DropdownMenuItem<String>(
-                          value: city.id,
-                          child: Text(city.name),
-                        ))
-                  ],
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedCity = value!;
-                    });
-                  },
-                ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -125,7 +136,7 @@ class _AdsListScreenState extends State<AdsListScreen> {
         Expanded(
           child: StreamBuilder<List<Map<String, dynamic>>>(
             stream: Supabase.instance.client
-                .from('ads')
+                .from(AppConstants.adsTable)
                 .stream(primaryKey: ['id'])
                 .order('created_at', ascending: false),
             builder: (context, snapshot) {
@@ -163,36 +174,64 @@ class _AdsListScreenState extends State<AdsListScreen> {
                 return const Center(child: Text('لا توجد إعلانات'));
               }
 
-              return ListView.builder(
-                itemCount: ads.length,
-                itemBuilder: (context, index) {
-                  var ad = ads[index];
-                  return Card(
-                    margin: const EdgeInsets.all(8.0),
-                    child: ListTile(
-                      leading: ad['images'] != null && (ad['images'] as List).isNotEmpty
-                          ? Image.network(
-                              ad['images'][0],
-                              width: 50,
-                              height: 50,
-                              fit: BoxFit.cover,
-                            )
-                          : const Icon(Icons.image),
-                      title: Text(ad['title']),
-                      subtitle: Text('${ad['price']} ريال - ${ad['city']}'),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => AdDetailsScreen(
-                              ad: ad,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  );
+              return RefreshIndicator(
+                onRefresh: () async {
+                  await _loadData();
                 },
+                child: ListView.builder(
+                  itemCount: ads.length,
+                  itemBuilder: (context, index) {
+                    final ad = ads[index];
+                    return Card(
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      child: ListTile(
+                        leading: ad['images'] != null && (ad['images'] as List).isNotEmpty
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.network(
+                                  ad['images'][0],
+                                  width: 60,
+                                  height: 60,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return Container(
+                                      width: 60,
+                                      height: 60,
+                                      color: Colors.grey[300],
+                                      child: const Icon(Icons.image_not_supported),
+                                    );
+                                  },
+                                ),
+                              )
+                            : Container(
+                                width: 60,
+                                height: 60,
+                                color: Colors.grey[300],
+                                child: const Icon(Icons.image_not_supported),
+                              ),
+                        title: Text(ad['title'] ?? ''),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(ad['price'] ?? ''),
+                            Text(ad['city'] ?? ''),
+                          ],
+                        ),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => AdDetailsScreen(ad: ad),
+                            ),
+                          );
+                        },
+                      ),
+                    );
+                  },
+                ),
               );
             },
           ),

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:akar/screens/auth/login_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -6,8 +7,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/constants.dart';
 import '../../services/home_service.dart';
-import '../../models/category_model.dart';
-
 class AddAdScreen extends StatefulWidget {
   const AddAdScreen({super.key});
 
@@ -24,8 +23,8 @@ class _AddAdScreenState extends State<AddAdScreen> {
   String? _selectedCategory;
   List<File> _images = [];
   bool _isLoading = false;
-  List<Category> _categories = [];
-  final HomeService _homeService = HomeService(Supabase.instance.client);
+    List<dynamic> _categories = [];
+  final HomeService _homeService = HomeService();
 
   @override
   void initState() {
@@ -35,11 +34,11 @@ class _AddAdScreenState extends State<AddAdScreen> {
 
   Future<void> _loadCategories() async {
     try {
-      final categories = await _homeService.getCategory();
+      final categories = await _homeService.getCategories();
       setState(() {
         _categories = categories;
         if (categories.isNotEmpty) {
-          _selectedCategory = categories[0].id;
+          _selectedCategory = categories[0]['name']?.toString();
         }
       });
     } catch (e) {
@@ -62,6 +61,13 @@ class _AddAdScreenState extends State<AddAdScreen> {
   Future<void> _pickImages() async {
     final ImagePicker picker = ImagePicker();
     
+    if (_images.length >= 10) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('يمكنك إضافة 10 صور كحد أقصى')),
+      );
+      return;
+    }
+    
     showModalBottomSheet(
       context: context,
       builder: (BuildContext context) {
@@ -75,9 +81,16 @@ class _AddAdScreenState extends State<AddAdScreen> {
                   Navigator.pop(context);
                   final List<XFile> pickedFiles = await picker.pickMultiImage();
                   if (pickedFiles.isNotEmpty) {
+                    final remainingSlots = 10 - _images.length;
+                    final filesToAdd = pickedFiles.take(remainingSlots).toList();
                     setState(() {
-                      _images.addAll(pickedFiles.map((file) => File(file.path)));
+                      _images.addAll(filesToAdd.map((file) => File(file.path)));
                     });
+                    if (pickedFiles.length > remainingSlots) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('تم إضافة الحد الأقصى من الصور (10 صور)')),
+                      );
+                    }
                   }
                 },
               ),
@@ -88,9 +101,15 @@ class _AddAdScreenState extends State<AddAdScreen> {
                   Navigator.pop(context);
                   final XFile? photo = await picker.pickImage(source: ImageSource.camera);
                   if (photo != null) {
-                    setState(() {
-                      _images.add(File(photo.path));
-                    });
+                    if (_images.length < 10) {
+                      setState(() {
+                        _images.add(File(photo.path));
+                      });
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('يمكنك إضافة 10 صور كحد أقصى')),
+                      );
+                    }
                   }
                 },
               ),
@@ -114,6 +133,16 @@ class _AddAdScreenState extends State<AddAdScreen> {
 
   Future<void> _submitAd() async {
     if (!_formKey.currentState!.validate()) return;
+    
+    final user = context.read<AuthProvider>().user;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('لإضافة إعلان، يرجى تسجيل الدخول أولاً')),
+      );
+      Navigator.of(context).pushNamed('/login');
+      return;
+    }
+
     if (_images.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('الرجاء إضافة صورة واحدة على الأقل')),
@@ -124,9 +153,6 @@ class _AddAdScreenState extends State<AddAdScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final user = context.read<AuthProvider>().user;
-      if (user == null) throw Exception('يجب تسجيل الدخول أولاً');
-
       // Upload images and get URLs
       final List<String> imageUrls = [];
       for (var image in _images) {
@@ -139,7 +165,7 @@ class _AddAdScreenState extends State<AddAdScreen> {
         'description': _descriptionController.text,
         'price': int.parse(_priceController.text),
         'city': _selectedCity,
-        'category_id': _selectedCategory,
+        'category': _selectedCategory,
         'images': imageUrls,
         'user_id': user.id,
         'created_at': DateTime.now().toIso8601String(),
@@ -154,7 +180,9 @@ class _AddAdScreenState extends State<AddAdScreen> {
           (route) => false,
         );
       }
-    } catch (e) {
+    } catch (e, stack) {
+      print('Hata: $e');
+      print('Stack trace: $stack');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(e.toString())),
@@ -169,160 +197,186 @@ class _AddAdScreenState extends State<AddAdScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final user = context.watch<AuthProvider>().user;
+
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('إضافة إعلان'),
-        ),
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextFormField(
-                  controller: _titleController,
-                  decoration: const InputDecoration(
-                    labelText: 'عنوان الإعلان',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'الرجاء إدخال عنوان الإعلان';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _descriptionController,
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                    labelText: 'وصف الإعلان',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'الرجاء إدخال وصف الإعلان';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _priceController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'السعر (ل.س)',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'الرجاء إدخال السعر';
-                    }
-                    if (int.tryParse(value) == null) {
-                      return 'الرجاء إدخال رقم صحيح';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: _selectedCity,
-                  decoration: const InputDecoration(
-                    labelText: 'المدينة',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: AppConstants.city.map((city) {
-                    return DropdownMenuItem<String>(
-                      value: city,
-                      child: Text(city),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    if (value != null) {
-                      setState(() => _selectedCity = value);
-                    }
-                  },
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: _selectedCategory ?? '',
-                  decoration: const InputDecoration(
-                    labelText: 'الفئة',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: _categories.map((category) {
-                    return DropdownMenuItem<String>(
-                      value: category.id ?? '',
-                      child: Text(category.name ?? ''),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    if (value != null) {
-                      setState(() => _selectedCategory = value);
-                    }
-                  },
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton.icon(
-                  onPressed: _pickImages,
-                  icon: const Icon(Icons.add_photo_alternate),
-                  label: const Text('إضافة صور'),
-                ),
-                const SizedBox(height: 8),
-                if (_images.isNotEmpty)
-                  SizedBox(
-                    height: 100,
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: _images.length,
-                      itemBuilder: (context, index) {
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 8.0),
-                          child: Stack(
-                            children: [
-                              Image.file(
-                                _images[index],
-                                width: 100,
-                                height: 100,
-                                fit: BoxFit.cover,
-                              ),
-                              Positioned(
-                                top: 0,
-                                right: 0,
-                                child: IconButton(
-                                  icon: const Icon(Icons.close, color: Colors.red),
-                                  onPressed: () {
-                                    setState(() {
-                                      _images.removeAt(index);
-                                    });
-                                  },
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
+       
+        body: user == null
+            ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text(
+                      'لإضافة إعلان، يرجى تسجيل الدخول أولاً',
+                      style: TextStyle(fontSize: 18),
+                      textAlign: TextAlign.center,
                     ),
-                  ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _submitAd,
-                    child: _isLoading
-                        ? const CircularProgressIndicator()
-                        : const Text('نشر الإعلان'),
+                    const SizedBox(height: 20),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const LoginScreen()),
+                          );
+                      },
+                      child: const Text('تسجيل الدخول'),
+                    ),
+                  ],
+                ),
+              )
+            : SingleChildScrollView(
+                padding: const EdgeInsets.all(16.0),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TextFormField(
+                        controller: _titleController,
+                        decoration: const InputDecoration(
+                          labelText: 'عنوان الإعلان',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'الرجاء إدخال عنوان الإعلان';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _descriptionController,
+                        maxLines: 3,
+                        decoration: const InputDecoration(
+                          labelText: 'وصف الإعلان',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'الرجاء إدخال وصف الإعلان';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _priceController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'السعر (ل.س)',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'الرجاء إدخال السعر';
+                          }
+                          if (int.tryParse(value) == null) {
+                            return 'الرجاء إدخال رقم صحيح';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<String>(
+                        value: _selectedCity,
+                        decoration: const InputDecoration(
+                          labelText: 'المدينة',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: AppConstants.city.map((city) {
+                          return DropdownMenuItem<String>(
+                            value: city,
+                            child: Text(city),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          if (value != null) {
+                            setState(() => _selectedCity = value);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<String>(
+                        value: _categories.any((cat) => cat['name']?.toString() == _selectedCategory)
+                            ? _selectedCategory
+                            : null,
+                        decoration: const InputDecoration(
+                          labelText: 'الفئة',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: _categories.map((category) {
+                          final name = category['name']?.toString() ?? '';
+                          return DropdownMenuItem<String>(
+                            value: name,
+                            child: Text(name),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          if (value != null) {
+                            setState(() => _selectedCategory = value);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        onPressed: _pickImages,
+                        icon: const Icon(Icons.add_photo_alternate),
+                        label: const Text('إضافة صور'),
+                      ),
+                      const SizedBox(height: 8),
+                      if (_images.isNotEmpty)
+                        SizedBox(
+                          height: 100,
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: _images.length,
+                            itemBuilder: (context, index) {
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 8.0),
+                                child: Stack(
+                                  children: [
+                                    Image.file(
+                                      _images[index],
+                                      width: 100,
+                                      height: 100,
+                                      fit: BoxFit.cover,
+                                    ),
+                                    Positioned(
+                                      top: 0,
+                                      right: 0,
+                                      child: IconButton(
+                                        icon: const Icon(Icons.close, color: Colors.red),
+                                        onPressed: () {
+                                          setState(() {
+                                            _images.removeAt(index);
+                                          });
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _submitAd,
+                          child: _isLoading
+                              ? const CircularProgressIndicator()
+                              : const Text('نشر الإعلان'),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
-          ),
-        ),
+              ),
       ),
     );
   }

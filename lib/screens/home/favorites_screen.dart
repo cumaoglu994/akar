@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/constants.dart';
 import 'ad_details_screen.dart';
-import '../../models/ad_model.dart';
 
 class FavoritesScreen extends StatelessWidget {
   const FavoritesScreen({super.key});
@@ -18,7 +17,7 @@ class FavoritesScreen extends StatelessWidget {
 
     return StreamBuilder<Map<String, dynamic>>(
       stream: Supabase.instance.client
-          .from('favorites')
+          .from(AppConstants.favoritesTable)
           .stream(primaryKey: ['user_id'])
           .eq('user_id', user.id)
           .map((event) => event.first),
@@ -40,9 +39,9 @@ class FavoritesScreen extends StatelessWidget {
 
         return StreamBuilder<List<Map<String, dynamic>>>(
           stream: Supabase.instance.client
-              .from('ads')
+              .from(AppConstants.adsTable)
               .stream(primaryKey: ['id'])
-              .eq('id', favoriteAds.first),
+              .eq('id', favoriteAds),
           builder: (context, snapshot) {
             if (snapshot.hasError) {
               return Center(child: Text('حدث خطأ: ${snapshot.error}'));
@@ -58,36 +57,94 @@ class FavoritesScreen extends StatelessWidget {
               return const Center(child: Text('لا توجد إعلانات في المفضلة'));
             }
 
-            return ListView.builder(
-              itemCount: ads.length,
-              itemBuilder: (context, index) {
-                final ad = ads[index];
-                return Card(
-                  margin: const EdgeInsets.all(8.0),
-                  child: ListTile(
-                    leading: ad['images'] != null && (ad['images'] as List).isNotEmpty
-                        ? Image.network(
-                            ad['images'][0],
-                            width: 50,
-                            height: 50,
-                            fit: BoxFit.cover,
-                          )
-                        : const Icon(Icons.image),
-                    title: Text(ad['title']),
-                    subtitle: Text('${ad['price']} ريال - ${ad['city']}'),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => AdDetailsScreen(
-                            ad: ad,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                );
+            return RefreshIndicator(
+              onRefresh: () async {
+                // The stream will automatically update the UI
+                await Future.delayed(const Duration(milliseconds: 500));
               },
+              child: ListView.builder(
+                itemCount: ads.length,
+                itemBuilder: (context, index) {
+                  final ad = ads[index];
+                  return Card(
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    child: ListTile(
+                      leading: ad['images'] != null && (ad['images'] as List).isNotEmpty
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.network(
+                                ad['images'][0],
+                                width: 60,
+                                height: 60,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Container(
+                                    width: 60,
+                                    height: 60,
+                                    color: Colors.grey[300],
+                                    child: const Icon(Icons.image_not_supported),
+                                  );
+                                },
+                              ),
+                            )
+                          : Container(
+                              width: 60,
+                              height: 60,
+                              color: Colors.grey[300],
+                              child: const Icon(Icons.image_not_supported),
+                            ),
+                      title: Text(ad['title'] ?? ''),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(ad['price'] ?? ''),
+                          Text(ad['city'] ?? ''),
+                        ],
+                      ),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.favorite, color: Colors.red),
+                        onPressed: () async {
+                          try {
+                            final response = await Supabase.instance.client
+                                .from(AppConstants.favoritesTable)
+                                .select('ads')
+                                .eq('user_id', user.id)
+                                .single();
+
+                            List<String> ads = [];
+                            if (response != null && response['ads'] != null) {
+                              ads = List<String>.from(response['ads']);
+                            }
+
+                            ads.remove(ad['id']);
+
+                            await Supabase.instance.client
+                                .from(AppConstants.favoritesTable)
+                                .upsert({'user_id': user.id, 'ads': ads});
+                          } catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('حدث خطأ: $e')),
+                              );
+                            }
+                          }
+                        },
+                      ),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => AdDetailsScreen(ad: ad),
+                          ),
+                        );
+                      },
+                    ),
+                  );
+                },
+              ),
             );
           },
         );
