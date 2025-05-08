@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import '../home/home_content_screen.dart';
+import '../home/main_screen.dart';
 import '../home/my_ads_screen.dart';
 import '../home/add_ad_screen.dart';
 import '../home/chats_list_screen.dart';
-import '../profile/profile_screen.dart';
+import '../home/profile/profile_screen.dart';
 
 class NavigationScreen extends StatefulWidget {
   const NavigationScreen({super.key});
@@ -21,7 +21,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
       body: IndexedStack(
         index: _selectedIndex,
         children: const [
-          HomeContentScreen(),
+          MainScreen(),
           MyAdsScreen(),
           AddAdScreen(),
           ChatsListScreen(),

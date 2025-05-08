@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/user_model.dart' as app;
 import '../utils/constants.dart';
 import '../utils/navigation_helper.dart';
 import '../screens/home/home_screen.dart';
 
 class AuthProvider extends ChangeNotifier {
   final SupabaseClient _supabase = Supabase.instance.client;
-  User? _user;
+  app.User? _user;
   bool _isLoading = false;
   bool _isAuthenticated = false;
 
-  User? get user => _user;
+  app.User? get user => _user;
   bool get isLoading => _isLoading;
   bool get isAuthenticated => _isAuthenticated;
 
@@ -18,11 +19,29 @@ class AuthProvider extends ChangeNotifier {
     _init();
   }
 
-  void _init() {
-    _user = _supabase.auth.currentUser;
+  void _init() async {
+    final currentUser = _supabase.auth.currentUser;
+    if (currentUser != null) {
+      final userData = await _supabase
+          .from(AppConstants.usersTable)
+          .select()
+          .eq('id', currentUser.id)
+          .single();
+      _user = app.User.fromMap(userData);
+    }
     _isAuthenticated = _user != null;
-    _supabase.auth.onAuthStateChange.listen((data) {
-      _user = data.session?.user;
+    
+    _supabase.auth.onAuthStateChange.listen((data) async {
+      if (data.session?.user != null) {
+        final userData = await _supabase
+            .from(AppConstants.usersTable)
+            .select()
+            .eq('id', data.session!.user.id)
+            .single();
+        _user = app.User.fromMap(userData);
+      } else {
+        _user = null;
+      }
       _isAuthenticated = _user != null;
       notifyListeners();
     });
@@ -52,22 +71,18 @@ class AuthProvider extends ChangeNotifier {
 
       _isLoading = false;
       notifyListeners();
-    } on AuthException catch (e) {
-      _isLoading = false;
-      notifyListeners();
-      if (e.message.contains('weak-password')) {
-        throw Exception('كلمة المرور ضعيفة جداً');
-      } else if (e.message.contains('email-already-in-use')) {
-        throw Exception('البريد الإلكتروني مستخدم بالفعل');
-      } else if (e.message.contains('invalid-email')) {
-        throw Exception('البريد الإلكتروني غير صالح');
-      } else {
-        throw Exception('حدث خطأ أثناء التسجيل: ${e.message}');
-      }
     } catch (e) {
       _isLoading = false;
       notifyListeners();
-      throw Exception('حدث خطأ غير متوقع: $e');
+      if (e.toString().contains('weak-password')) {
+        throw Exception('كلمة المرور ضعيفة جداً');
+      } else if (e.toString().contains('email-already-in-use')) {
+        throw Exception('البريد الإلكتروني مستخدم بالفعل');
+      } else if (e.toString().contains('invalid-email')) {
+        throw Exception('البريد الإلكتروني غير صالح');
+      } else {
+        throw Exception('حدث خطأ أثناء التسجيل: $e');
+      }
     }
   }
 
@@ -76,29 +91,42 @@ class AuthProvider extends ChangeNotifier {
       _isLoading = true;
       notifyListeners();
 
-      await _supabase.auth.signInWithPassword(
+      final response = await _supabase.auth.signInWithPassword(
         email: email.trim(),
         password: password.trim(),
       );
 
-      _isLoading = false;
-      notifyListeners();
-    } on AuthException catch (e) {
-      _isLoading = false;
-      notifyListeners();
-      if (e.message.contains('user-not-found')) {
-        throw Exception('لم يتم العثور على المستخدم');
-      } else if (e.message.contains('wrong-password')) {
-        throw Exception('كلمة المرور غير صحيحة');
-      } else if (e.message.contains('invalid-email')) {
-        throw Exception('البريد الإلكتروني غير صالح');
-      } else {
-        throw Exception('حدث خطأ أثناء تسجيل الدخول: ${e.message}');
+      if (response.user != null) {
+        final userData = await _supabase
+            .from(AppConstants.usersTable)
+            .select()
+            .eq('id', response.user!.id)
+            .single();
+        _user = app.User.fromMap(userData);
+        _isAuthenticated = true;
+        notifyListeners();
+
+        await _supabase.from(AppConstants.usersTable)
+            .update({
+          'last_login': DateTime.now().toIso8601String(),
+        })
+            .eq('id', response.user!.id);
       }
+
+      _isLoading = false;
+      notifyListeners();
     } catch (e) {
       _isLoading = false;
       notifyListeners();
-      throw Exception('حدث خطأ غير متوقع: $e');
+      if (e.toString().contains('user-not-found')) {
+        throw Exception('لم يتم العثور على المستخدم');
+      } else if (e.toString().contains('wrong-password')) {
+        throw Exception('كلمة المرور غير صحيحة');
+      } else if (e.toString().contains('invalid-email')) {
+        throw Exception('البريد الإلكتروني غير صالح');
+      } else {
+        throw Exception('حدث خطأ أثناء تسجيل الدخول: $e');
+      }
     }
   }
 
@@ -108,6 +136,8 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
 
       await _supabase.auth.signOut();
+      _user = null;
+      _isAuthenticated = false;
 
       _isLoading = false;
       notifyListeners();
@@ -130,7 +160,12 @@ class AuthProvider extends ChangeNotifier {
       if (response.user != null) {
         debugPrint('AuthProvider: Giriş başarılı - Kullanıcı ID: ${response.user!.id}');
         
-        _user = response.user;
+        final userData = await _supabase
+            .from(AppConstants.usersTable)
+            .select()
+            .eq('id', response.user!.id)
+            .single();
+        _user = app.User.fromMap(userData);
         _isAuthenticated = true;
         notifyListeners();
 

@@ -7,14 +7,14 @@ import '../../models/category_model.dart';
 import '../../models/location_models.dart';
 import 'ad_details_screen.dart';
 
-class HomeContentScreen extends StatefulWidget {
-  const HomeContentScreen({super.key});
+class MainScreen extends StatefulWidget {
+  const MainScreen({super.key});
 
   @override
-  State<HomeContentScreen> createState() => _HomeContentScreenState();
+  State<MainScreen> createState() => _MainScreenState();
 }
 
-class _HomeContentScreenState extends State<HomeContentScreen> {
+class _MainScreenState extends State<MainScreen> {
   String _searchQuery = '';
   String _selectedCity = 'الكل';
   String _selectedCategory = 'الكل';
