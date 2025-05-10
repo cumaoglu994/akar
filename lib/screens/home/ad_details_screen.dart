@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:card_swiper/card_swiper.dart';
+import 'package:provider/provider.dart';
+import '../../providers/auth_provider.dart';
 import 'chat_screen.dart';
 
 class AdDetailsScreen extends StatefulWidget {
@@ -14,6 +16,7 @@ class AdDetailsScreen extends StatefulWidget {
 
 class _AdDetailsScreenState extends State<AdDetailsScreen> {
   bool _isFavorite = false;
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -207,19 +210,50 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                   children: [
                     Expanded(
                       child: ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => ChatScreen(
-                                sellerId: adData['user_id'] ?? '',
-                                adId: adData['id'] ?? '',
+                        onPressed: _isLoading ? null : () async {
+                          setState(() => _isLoading = true);
+                          try {
+                            final user = context.read<AuthProvider>().user;
+                            if (user == null) {
+                              throw Exception('User not authenticated');
+                            }
+                            
+                            if (!mounted) return;
+                            
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => ChatScreen(
+                                  sellerId: widget.ad['user_id'] ?? '',
+                                  adId: widget.ad['id'] ?? '',
+                                ),
                               ),
-                            ),
-                          );
+                            );
+                          } catch (e) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('حدث خطأ: ${e.toString()}'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          } finally {
+                            if (mounted) {
+                              setState(() => _isLoading = false);
+                            }
+                          }
                         },
-                        icon: const Icon(Icons.chat),
-                        label: const Text('تواصل مع المعلن'),
+                        icon: _isLoading 
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : const Icon(Icons.chat),
+                        label: Text(_isLoading ? 'جاري التحميل...' : 'تواصل مع المعلن'),
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
