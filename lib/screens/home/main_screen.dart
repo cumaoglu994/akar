@@ -41,8 +41,8 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   String _searchQuery = '';
-  String _selectedCity = '1';
-  String _selectedCategory = '1';
+  String _selectedCity = 'all';
+  String _selectedCategory = 'all';
   int? _minPrice;
   int? _maxPrice;
   bool _showFilters = false;
@@ -64,13 +64,13 @@ class _MainScreenState extends State<MainScreen> {
 
       // Şehirleri yükle
       final cityResponse = await Supabase.instance.client
-          .from('cities')
+          .from('city')
           .select()
           .order('id');
 
       // Kategorileri yükle
       final categoryResponse = await Supabase.instance.client
-          .from('categories')
+          .from('category')
           .select()
           .order('id');
 
@@ -168,7 +168,7 @@ class _MainScreenState extends State<MainScreen> {
                               child: _isLoading
                                   ? const Center(child: CircularProgressIndicator())
                                   : DropdownButtonFormField<String>(
-                                      value: _city.isNotEmpty ? _selectedCity : null,
+                                      value: _selectedCity,
                                       decoration: const InputDecoration(
                                         labelText: 'المدينة',
                                         border: OutlineInputBorder(),
@@ -181,18 +181,24 @@ class _MainScreenState extends State<MainScreen> {
                                         color: Colors.black,
                                         fontSize: 16,
                                       ),
-                                      items: _city.map((city) {
-                                        return DropdownMenuItem<String>(
-                                          value: city.id,
-                                          child: Text(
-                                            city.name,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
-                                              color: Colors.black,
+                                      items: [
+                                        const DropdownMenuItem(
+                                          value: 'all',
+                                          child: Text('كل المدن'),
+                                        ),
+                                        ..._city.map((city) {
+                                          return DropdownMenuItem<String>(
+                                            value: city.id,
+                                            child: Text(
+                                              city.name,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                color: Colors.black,
+                                              ),
                                             ),
-                                          ),
-                                        );
-                                      }).toList(),
+                                          );
+                                        }).toList(),
+                                      ],
                                       onChanged: (String? newValue) {
                                         if (newValue != null) {
                                           setState(() {
@@ -207,7 +213,7 @@ class _MainScreenState extends State<MainScreen> {
                               child: _isLoading
                                   ? const Center(child: CircularProgressIndicator())
                                   : DropdownButtonFormField<String>(
-                                      value: _category.isNotEmpty ? _selectedCategory : null,
+                                      value: _selectedCategory,
                                       decoration: const InputDecoration(
                                         labelText: 'الفئة',
                                         border: OutlineInputBorder(),
@@ -220,18 +226,24 @@ class _MainScreenState extends State<MainScreen> {
                                         color: Colors.black,
                                         fontSize: 16,
                                       ),
-                                      items: _category.map((category) {
-                                        return DropdownMenuItem<String>(
-                                          value: category.id,
-                                          child: Text(
-                                            category.name,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
-                                              color: Colors.black,
+                                      items: [
+                                        const DropdownMenuItem(
+                                          value: 'all',
+                                          child: Text('كل الفئات'),
+                                        ),
+                                        ..._category.map((category) {
+                                          return DropdownMenuItem<String>(
+                                            value: category.id,
+                                            child: Text(
+                                              category.name,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                color: Colors.black,
+                                              ),
                                             ),
-                                          ),
-                                        );
-                                      }).toList(),
+                                          );
+                                        }).toList(),
+                                      ],
                                       onChanged: (String? newValue) {
                                         if (newValue != null) {
                                           setState(() {
@@ -292,6 +304,7 @@ class _MainScreenState extends State<MainScreen> {
               stream: Supabase.instance.client
                   .from(AppConstants.adsTable)
                   .stream(primaryKey: ['id'])
+                  .eq('status', 'yes')
                   .order('created_at', ascending: false),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
@@ -311,12 +324,20 @@ class _MainScreenState extends State<MainScreen> {
                   ).toList();
                 }
 
-                if (_selectedCity != '1') {
-                  ads = ads.where((ad) => ad['city'] == _selectedCity).toList();
+                if (_selectedCity != 'all') {
+                  final selectedCityName = _city.firstWhere(
+                    (city) => city.id == _selectedCity,
+                    orElse: () => City(id: '', name: ''),
+                  ).name;
+                  ads = ads.where((ad) => (ad['city']?.toString() ?? '') == selectedCityName).toList();
                 }
 
-                if (_selectedCategory != '1') {
-                  ads = ads.where((ad) => ad['category'] == _selectedCategory).toList();
+                if (_selectedCategory != 'all') {
+                  final selectedCategoryName = _category.firstWhere(
+                    (category) => category.id == _selectedCategory,
+                    orElse: () => Category(id: '', name: ''),
+                  ).name;
+                  ads = ads.where((ad) => (ad['category']?.toString() ?? '') == selectedCategoryName).toList();
                 }
 
                 if (_minPrice != null) {
@@ -347,7 +368,7 @@ class _MainScreenState extends State<MainScreen> {
                           borderRadius: BorderRadius.circular(8),
                           child: ad['images'] != null && (ad['images'] as List).isNotEmpty
                               ? Image.network(
-                                  ad['images'][0],
+                                  ad['images'][0].toString(),
                                   width: 60,
                                   height: 60,
                                   fit: BoxFit.cover,
@@ -385,21 +406,16 @@ class _MainScreenState extends State<MainScreen> {
                                 Icon(Icons.location_on, size: 16, color: Colors.grey[600]),
                                 const SizedBox(width: 4),
                                 Text(
-                                  ad['city'] ?? '',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.green,
-                                    fontSize: 16,
-                                  ),
+                                  ad['city']?.toString() ?? '',
+                                  style: TextStyle(color: Colors.grey[600], fontSize: 12),
                                 ),
-                                
                                 const SizedBox(width: 8),
                                 Icon(Icons.category, size: 16, color: Colors.grey[600]),
                                 const SizedBox(width: 4),
-                                  Text(
-                                    ad['category'] ?? '',
-                                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                                  ),
+                                Text(
+                                  ad['category']?.toString() ?? '',
+                                  style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                                ),
                               ],
                             ),
                           ],

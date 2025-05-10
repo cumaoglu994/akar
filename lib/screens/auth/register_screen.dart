@@ -1,12 +1,7 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:akar/screens/auth/login_screen.dart';
-import 'package:akar/utils/show_snackbar.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
-import '../../utils/constants.dart';
 import '../../utils/navigation_helper.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -24,7 +19,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _phoneController = TextEditingController();
   bool _isLoading = false;
   bool _obscurePassword = true;
-  Uint8List? _image;
 
   @override
   void dispose() {

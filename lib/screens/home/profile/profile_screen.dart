@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/auth_provider.dart';
-import '../../../utils/constants.dart';
 import '../../auth/login_screen.dart';
 import 'profile_details_screen.dart';
 import 'language_screen.dart';

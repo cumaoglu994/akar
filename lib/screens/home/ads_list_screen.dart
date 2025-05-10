@@ -218,6 +218,13 @@ class _AdsListScreenState extends State<AdsListScreen> {
                           children: [
                             Text(ad['price'] ?? ''),
                             Text(ad['city'] ?? ''),
+                            Text(
+                              ad['status'] == 'yes' ? 'تم الموافقة' : 'في انتظار الموافقة',
+                              style: TextStyle(
+                                color: ad['status'] == 'yes' ? Colors.green : Colors.orange,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ],
                         ),
                         onTap: () {

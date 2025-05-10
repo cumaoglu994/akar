@@ -173,6 +173,12 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                         'تاريخ النشر',
                         _formatDate(DateTime.parse(adData['created_at'] ?? DateTime.now().toIso8601String())),
                       ),
+                      const SizedBox(height: 12),
+                      _buildDetailRow(
+                        Icons.info,
+                        'الحالة',
+                        adData['status'] == 'yes' ? 'تم الموافقة' : 'في انتظار الموافقة',
+                      ),
                     ],
                   ),
                   const SizedBox(height: 24),

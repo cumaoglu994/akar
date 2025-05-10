@@ -20,7 +20,14 @@ class _MyAdsScreenState extends State<MyAdsScreen> {
     await Future.delayed(const Duration(milliseconds: 500));
   }
 
-
+  String _formatPrice(num price) {
+    if (price >= 1000000) {
+      return '${(price / 1000000).toStringAsFixed(1)} مليون';
+    } else if (price >= 1000) {
+      return '${(price / 1000).toStringAsFixed(1)} ألف';
+    }
+    return price.toString();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -58,6 +65,14 @@ class _MyAdsScreenState extends State<MyAdsScreen> {
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: Colors.grey,
                   ),
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pushNamed(context, '/add-ad');
+                  },
+                  icon: const Icon(Icons.add),
+                  label: const Text('إضافة إعلان جديد'),
                 ),
               ],
             ),
@@ -105,8 +120,33 @@ class _MyAdsScreenState extends State<MyAdsScreen> {
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(ad['price']?.toString() ?? ''),
+                      Text('${_formatPrice(ad['price'] ?? 0)} ليرة سورية'),
                       Text(ad['city']?.toString() ?? ''),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: ad['status'] == 'yes' ? Colors.green.withOpacity(0.1) : Colors.orange.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+  ad['status'] == 'yes'
+      ? 'تمت الموافقة'
+      : ad['status'] == 'no'
+          ? 'تم الرفض'
+          : 'في انتظار الموافقة',
+  style: TextStyle(
+    color: ad['status'] == 'yes'
+        ? Colors.green
+        : ad['status'] == 'no'
+            ? Colors.red
+            : Colors.orange,
+    fontWeight: FontWeight.bold,
+    fontSize: 12,
+  ),
+),
+
+
+                      ),
                     ],
                   ),
                   trailing: IconButton(

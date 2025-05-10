@@ -5,7 +5,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../providers/auth_provider.dart';
-import '../../utils/constants.dart';
 import '../../services/home_service.dart';
 class AddAdScreen extends StatefulWidget {
   const AddAdScreen({super.key});
@@ -19,17 +18,19 @@ class _AddAdScreenState extends State<AddAdScreen> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _priceController = TextEditingController();
-  String _selectedCity = AppConstants.city[0];
   String? _selectedCategory;
+  String? _selectedCity;
   List<File> _images = [];
   bool _isLoading = false;
     List<dynamic> _categories = [];
+    List<dynamic> _cities = [];
   final HomeService _homeService = HomeService();
 
   @override
   void initState() {
     super.initState();
     _loadCategories();
+    _loadCities();
   }
 
   Future<void> _loadCategories() async {
@@ -49,7 +50,23 @@ class _AddAdScreenState extends State<AddAdScreen> {
       }
     }
   }
-
+  Future<void> _loadCities() async {
+    try {
+      final cities = await _homeService.getCity();
+      setState(() {
+        _cities = cities;
+        if (cities.isNotEmpty) {
+          _selectedCity = cities[0]['name']?.toString();
+        }
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('خطأ في تحميل المدن: $e')),
+        );
+      }
+    }
+  }
   @override
   void dispose() {
     _titleController.dispose();
@@ -169,11 +186,12 @@ class _AddAdScreenState extends State<AddAdScreen> {
         'images': imageUrls,
         'user_id': user.id,
         'created_at': DateTime.now().toIso8601String(),
+        'status': 'waiting',
       });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم إضافة الإعلان بنجاح')),
+          const SnackBar(content: Text('تم إضافة الإعلان بنجاح - في انتظار الموافقة')),
         );
         Navigator.of(context).pushNamedAndRemoveUntil(
           '/home',
@@ -286,10 +304,11 @@ class _AddAdScreenState extends State<AddAdScreen> {
                           labelText: 'المدينة',
                           border: OutlineInputBorder(),
                         ),
-                        items: AppConstants.city.map((city) {
+                        items: _cities.map((city) {
+                          final name = city['name']?.toString() ?? '';
                           return DropdownMenuItem<String>(
-                            value: city,
-                            child: Text(city),
+                            value: name,
+                            child: Text(name),
                           );
                         }).toList(),
                         onChanged: (value) {
