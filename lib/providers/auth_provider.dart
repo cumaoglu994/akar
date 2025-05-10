@@ -21,23 +21,69 @@ class AuthProvider extends ChangeNotifier {
   void _init() async {
     final currentUser = _supabase.auth.currentUser;
     if (currentUser != null) {
-      final userData = await _supabase
-          .from(AppConstants.usersTable)
-          .select()
-          .eq('id', currentUser.id)
-          .single();
-      _user = app.User.fromMap(userData);
+      try {
+        final userData = await _supabase
+            .from(AppConstants.usersTable)
+            .select()
+            .eq('id', currentUser.id)
+            .maybeSingle();
+            
+        if (userData != null) {
+          _user = app.User.fromMap(userData);
+        } else {
+          // Create user record if it doesn't exist
+          await _supabase.from(AppConstants.usersTable).insert({
+            'id': currentUser.id,
+            'email': currentUser.email,
+            'created_at': DateTime.now().toIso8601String(),
+            'updated_at': DateTime.now().toIso8601String(),
+          });
+          
+          // Fetch the newly created user
+          final newUserData = await _supabase
+              .from(AppConstants.usersTable)
+              .select()
+              .eq('id', currentUser.id)
+              .single();
+          _user = app.User.fromMap(newUserData);
+        }
+      } catch (e) {
+        debugPrint('Error initializing user: $e');
+      }
     }
     _isAuthenticated = _user != null;
     
     _supabase.auth.onAuthStateChange.listen((data) async {
       if (data.session?.user != null) {
-        final userData = await _supabase
-            .from(AppConstants.usersTable)
-            .select()
-            .eq('id', data.session!.user.id)
-            .single();
-        _user = app.User.fromMap(userData);
+        try {
+          final userData = await _supabase
+              .from(AppConstants.usersTable)
+              .select()
+              .eq('id', data.session!.user.id)
+              .maybeSingle();
+              
+          if (userData != null) {
+            _user = app.User.fromMap(userData);
+          } else {
+            // Create user record if it doesn't exist
+            await _supabase.from(AppConstants.usersTable).insert({
+              'id': data.session!.user.id,
+              'email': data.session!.user.email,
+              'created_at': DateTime.now().toIso8601String(),
+              'updated_at': DateTime.now().toIso8601String(),
+            });
+            
+            // Fetch the newly created user
+            final newUserData = await _supabase
+                .from(AppConstants.usersTable)
+                .select()
+                .eq('id', data.session!.user.id)
+                .single();
+            _user = app.User.fromMap(newUserData);
+          }
+        } catch (e) {
+          debugPrint('Error handling auth state change: $e');
+        }
       } else {
         _user = null;
       }
@@ -100,8 +146,28 @@ class AuthProvider extends ChangeNotifier {
             .from(AppConstants.usersTable)
             .select()
             .eq('id', response.user!.id)
-            .single();
-        _user = app.User.fromMap(userData);
+            .maybeSingle();
+            
+        if (userData != null) {
+          _user = app.User.fromMap(userData);
+        } else {
+          // Create user record if it doesn't exist
+          await _supabase.from(AppConstants.usersTable).insert({
+            'id': response.user!.id,
+            'email': response.user!.email,
+            'created_at': DateTime.now().toIso8601String(),
+            'updated_at': DateTime.now().toIso8601String(),
+          });
+          
+          // Fetch the newly created user
+          final newUserData = await _supabase
+              .from(AppConstants.usersTable)
+              .select()
+              .eq('id', response.user!.id)
+              .single();
+          _user = app.User.fromMap(newUserData);
+        }
+        
         _isAuthenticated = true;
         notifyListeners();
 
@@ -163,8 +229,28 @@ class AuthProvider extends ChangeNotifier {
             .from(AppConstants.usersTable)
             .select()
             .eq('id', response.user!.id)
-            .single();
-        _user = app.User.fromMap(userData);
+            .maybeSingle();
+            
+        if (userData != null) {
+          _user = app.User.fromMap(userData);
+        } else {
+          // Create user record if it doesn't exist
+          await _supabase.from(AppConstants.usersTable).insert({
+            'id': response.user!.id,
+            'email': response.user!.email,
+            'created_at': DateTime.now().toIso8601String(),
+            'updated_at': DateTime.now().toIso8601String(),
+          });
+          
+          // Fetch the newly created user
+          final newUserData = await _supabase
+              .from(AppConstants.usersTable)
+              .select()
+              .eq('id', response.user!.id)
+              .single();
+          _user = app.User.fromMap(newUserData);
+        }
+        
         _isAuthenticated = true;
         notifyListeners();
 
@@ -205,22 +291,80 @@ class AuthProvider extends ChangeNotifier {
     String phoneNumber,
   ) async {
     try {
+      _isLoading = true;
+      notifyListeners();
+
       final response = await _supabase.auth.signUp(
         email: email,
         password: password,
       );
 
       if (response.user != null) {
-        await _supabase.from(AppConstants.usersTable).insert({
-          'id': response.user!.id,
-          'name': name,
-          'email': email,
-          'phone': phoneNumber,
-          'created_at': DateTime.now().toIso8601String(),
-        });
+        try {
+          // First check if user already exists
+          final existingUser = await _supabase
+              .from(AppConstants.usersTable)
+              .select()
+              .eq('id', response.user!.id)
+              .maybeSingle();
+
+          if (existingUser == null) {
+            // Create new user record
+            final newUser = await _supabase.from(AppConstants.usersTable)
+                .insert({
+                  'id': response.user!.id,
+                  'name': name,
+                  'email': email,
+                  'phone': phoneNumber,
+                  'created_at': DateTime.now().toIso8601String(),
+                  'updated_at': DateTime.now().toIso8601String(),
+                })
+                .select()
+                .single();
+                
+            _user = app.User.fromMap(newUser);
+            _isAuthenticated = true;
+          } else {
+            _user = app.User.fromMap(existingUser);
+            _isAuthenticated = true;
+          }
+        } catch (e) {
+          debugPrint('Error creating/fetching user record: $e');
+          if (e.toString().contains('violates row-level security policy')) {
+            throw Exception('Güvenlik politikası nedeniyle işlem reddedildi. Lütfen yönetici ile iletişime geçin.');
+          } else if (e.toString().contains('duplicate key value')) {
+            // Kullanıcı zaten varsa, mevcut kullanıcıyı getir
+            try {
+              final existingUser = await _supabase
+                  .from(AppConstants.usersTable)
+                  .select()
+                  .eq('id', response.user!.id)
+                  .single();
+              _user = app.User.fromMap(existingUser);
+              _isAuthenticated = true;
+            } catch (fetchError) {
+              throw Exception('Kullanıcı kaydı bulunamadı. Lütfen tekrar deneyin.');
+            }
+          } else {
+            throw Exception('Kullanıcı kaydı oluşturulurken bir hata oluştu: $e');
+          }
+        }
       }
+
+      _isLoading = false;
+      notifyListeners();
     } catch (e) {
-      throw _handleAuthError(e);
+      _isLoading = false;
+      notifyListeners();
+      if (e.toString().contains('weak-password')) {
+        throw Exception('Şifre çok zayıf');
+      } else if (e.toString().contains('email-already-in-use')) {
+        throw Exception('Bu e-posta adresi zaten kullanımda');
+      } else if (e.toString().contains('invalid-email')) {
+        throw Exception('Geçersiz e-posta adresi');
+      } else {
+        throw Exception('Kayıt olurken bir hata oluştu: $e');
+      }
     }
   }
 

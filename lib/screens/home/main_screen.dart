@@ -65,11 +65,34 @@ class _MainScreenState extends State<MainScreen> {
   List<Category> _category = [];
   bool _isLoading = true;
   final _refreshKey = GlobalKey<RefreshIndicatorState>();
+  List<Map<String, dynamic>> _ads = [];
+  RealtimeChannel? _channel;
 
   @override
   void initState() {
     super.initState();
     _loadData();
+    _setupRealtimeSubscription();
+  }
+
+  @override
+  void dispose() {
+    _channel?.unsubscribe();
+    super.dispose();
+  }
+
+  void _setupRealtimeSubscription() {
+    _channel = Supabase.instance.client
+        .channel('public:${AppConstants.adsTable}')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: AppConstants.adsTable,
+          callback: (payload) {
+            _loadData();
+          },
+        )
+        .subscribe();
   }
 
   Future<void> _loadData() async {
@@ -88,6 +111,13 @@ class _MainScreenState extends State<MainScreen> {
           .select()
           .order('id');
 
+      // İlanları yükle
+      final adsResponse = await Supabase.instance.client
+          .from(AppConstants.adsTable)
+          .select()
+          .eq('status', 'yes')
+          .order('created_at', ascending: false);
+
       if (mounted) {
         setState(() {
           _city = (cityResponse as List).map((data) {
@@ -104,6 +134,7 @@ class _MainScreenState extends State<MainScreen> {
             );
           }).toList();
 
+          _ads = (adsResponse as List).cast<Map<String, dynamic>>();
           _isLoading = false;
         });
       }
@@ -358,86 +389,10 @@ class _MainScreenState extends State<MainScreen> {
         Expanded(
           child: RefreshIndicator(
             key: _refreshKey,
-            onRefresh: _refreshData,
-            child: StreamBuilder<List<Map<String, dynamic>>>(
-              stream: Supabase.instance.client
-                  .from(AppConstants.adsTable)
-                  .stream(primaryKey: ['id'])
-                  .eq('status', 'yes')
-                  .order('created_at', ascending: false),
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return Center(child: Text('حدث خطأ: ${snapshot.error}'));
-                }
-
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                var ads = snapshot.data ?? [];
-
-                // Filtreleri uygula
-                if (_searchQuery.isNotEmpty) {
-                  ads = ads.where((ad) => 
-                    (ad['title'] ?? '').toLowerCase().contains(_searchQuery.toLowerCase())
-                  ).toList();
-                }
-
-                if (_selectedCity != 'all') {
-                  final selectedCityName = _city.firstWhere(
-                    (city) => city.id == _selectedCity,
-                    orElse: () => City(id: '', name: ''),
-                  ).name;
-                  ads = ads.where((ad) => (ad['city']?.toString() ?? '') == selectedCityName).toList();
-                }
-
-                if (_selectedCategory != 'all') {
-                  final selectedCategoryName = _category.firstWhere(
-                    (category) => category.id == _selectedCategory,
-                    orElse: () => Category(id: '', name: ''),
-                  ).name;
-                  ads = ads.where((ad) => (ad['category']?.toString() ?? '') == selectedCategoryName).toList();
-                }
-
-                if (_minPrice != null) {
-                  ads = ads.where((ad) => (ad['price'] ?? 0) >= _minPrice!).toList();
-                }
-
-                if (_maxPrice != null) {
-                  ads = ads.where((ad) => (ad['price'] ?? 0) <= _maxPrice!).toList();
-                }
-
-                if (ads.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.search_off, size: 80, color: Colors.grey[400]),
-                        const SizedBox(height: 16),
-                        Text(
-                          'لا توجد إعلانات',
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: Colors.grey[600],
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                return ListView.builder(
-                  padding: const EdgeInsets.only(top: 8),
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  itemCount: ads.length,
-                  itemBuilder: (context, index) {
-                    final ad = ads[index];
-                    return _buildAdCard(context, ad);
-                  },
-                );
-              },
-            ),
+            onRefresh: _loadData,
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _buildAdsList(),
           ),
         ),
       ],
@@ -509,6 +464,71 @@ class _MainScreenState extends State<MainScreen> {
         keyboardType: keyboardType,
         onChanged: onChanged,
       ),
+    );
+  }
+
+  Widget _buildAdsList() {
+    var filteredAds = _ads;
+
+    // Filtreleri uygula
+    if (_searchQuery.isNotEmpty) {
+      filteredAds = filteredAds.where((ad) => 
+        (ad['title'] ?? '').toLowerCase().contains(_searchQuery.toLowerCase())
+      ).toList();
+    }
+
+    if (_selectedCity != 'all') {
+      final selectedCityName = _city.firstWhere(
+        (city) => city.id == _selectedCity,
+        orElse: () => City(id: '', name: ''),
+      ).name;
+      filteredAds = filteredAds.where((ad) => (ad['city']?.toString() ?? '') == selectedCityName).toList();
+    }
+
+    if (_selectedCategory != 'all') {
+      final selectedCategoryName = _category.firstWhere(
+        (category) => category.id == _selectedCategory,
+        orElse: () => Category(id: '', name: ''),
+      ).name;
+      filteredAds = filteredAds.where((ad) => (ad['category']?.toString() ?? '') == selectedCategoryName).toList();
+    }
+
+    if (_minPrice != null) {
+      filteredAds = filteredAds.where((ad) => (ad['price'] ?? 0) >= _minPrice!).toList();
+    }
+
+    if (_maxPrice != null) {
+      filteredAds = filteredAds.where((ad) => (ad['price'] ?? 0) <= _maxPrice!).toList();
+    }
+
+    if (filteredAds.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.search_off, size: 80, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              'لا توجد إعلانات',
+              style: TextStyle(
+                fontSize: 18,
+                color: Colors.grey[600],
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.only(top: 8),
+      physics: const AlwaysScrollableScrollPhysics(),
+      itemCount: filteredAds.length,
+      itemBuilder: (context, index) {
+        final ad = filteredAds[index];
+        return _buildAdCard(context, ad);
+      },
     );
   }
 
