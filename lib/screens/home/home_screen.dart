@@ -1,12 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../providers/auth_provider.dart';
 import '../../utils/constants.dart';
-import '../../services/home_service.dart';
-import '../../models/ad_model.dart';
-import '../../models/category_model.dart';
-import '../../models/location_models.dart';
 import '../navigation/navigation_screen.dart';
 
 class HomeScreen extends StatefulWidget {

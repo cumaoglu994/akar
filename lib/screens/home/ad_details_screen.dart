@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:card_swiper/card_swiper.dart';
 import 'chat_screen.dart';
-import '../../models/ad_model.dart';
 
 class AdDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> ad;
@@ -173,6 +172,12 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
                         Icons.calendar_today,
                         'تاريخ النشر',
                         _formatDate(DateTime.parse(adData['created_at'] ?? DateTime.now().toIso8601String())),
+                      ),
+                      const SizedBox(height: 12),
+                      _buildDetailRow(
+                        Icons.info,
+                        'الحالة',
+                        adData['status'] == 'yes' ? 'تم الموافقة' : 'في انتظار الموافقة',
                       ),
                     ],
                   ),

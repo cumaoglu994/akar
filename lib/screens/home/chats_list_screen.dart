@@ -50,73 +50,92 @@ class ChatsListScreen extends StatelessWidget {
           );
         }
 
-        return ListView.builder(
-          itemCount: chats.length,
-          itemBuilder: (context, index) {
-            final chat = chats[index];
-            final isBuyer = chat['buyer_id'] == user.id;
-            final otherUserId = isBuyer ? chat['seller_id'] : chat['buyer_id'];
-
-            return FutureBuilder<Map<String, dynamic>>(
-              future: Supabase.instance.client
-                  .from(AppConstants.usersTable)
-                  .select()
-                  .eq('id', otherUserId)
-                  .single(),
-              builder: (context, userSnapshot) {
-                if (!userSnapshot.hasData) {
-                  return const ListTile(
-                    leading: CircleAvatar(child: Icon(Icons.person)),
-                    title: Text('جاري التحميل...'),
-                  );
-                }
-
-                final otherUser = userSnapshot.data!;
-
-                return ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: Colors.grey[200],
-                    child: const Icon(Icons.person, color: Colors.grey),
-                  ),
-                  title: Text(otherUser['name'] ?? 'مستخدم'),
-                  subtitle: Text(
-                    chat['last_message'] ?? 'لا توجد رسائل',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  trailing: Text(
-                    _formatDate(DateTime.parse(chat['last_message_time'])),
-                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                  ),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ChatScreen(
-                          sellerId: otherUserId,
-                          adId: chat['ad_id'],
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-            );
+        return RefreshIndicator(
+          onRefresh: () async {
+            // The stream will automatically update the UI
+            await Future.delayed(const Duration(milliseconds: 500));
           },
+          child: ListView.builder(
+            itemCount: chats.length,
+            itemBuilder: (context, index) {
+              final chat = chats[index];
+              final isBuyer = chat['buyer_id'] == user.id;
+              final otherUserId = isBuyer ? chat['seller_id'] : chat['buyer_id'];
+
+              return FutureBuilder<Map<String, dynamic>>(
+                future: Supabase.instance.client
+                    .from(AppConstants.usersTable)
+                    .select()
+                    .eq('id', otherUserId)
+                    .single(),
+                builder: (context, userSnapshot) {
+                  if (!userSnapshot.hasData) {
+                    return const ListTile(
+                      leading: CircleAvatar(child: Icon(Icons.person)),
+                      title: Text('جاري التحميل...'),
+                    );
+                  }
+
+                  final otherUser = userSnapshot.data!;
+                  final lastMessageTime = chat['last_message_time'] != null
+                      ? DateTime.parse(chat['last_message_time'])
+                      : null;
+
+                  return ListTile(
+                    leading: CircleAvatar(
+                      backgroundImage: otherUser['profile_image'] != null
+                          ? NetworkImage(otherUser['profile_image'])
+                          : null,
+                      child: otherUser['profile_image'] == null
+                          ? const Icon(Icons.person)
+                          : null,
+                    ),
+                    title: Text(otherUser['name'] ?? 'مستخدم'),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          chat['last_message'] ?? 'لا توجد رسائل',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (lastMessageTime != null)
+                          Text(
+                            _formatTime(lastMessageTime),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                      ],
+                    ),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ChatScreen(
+                            sellerId: otherUserId,
+                            adId: chat['ad_id'],
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
+              );
+            },
+          ),
         );
       },
     );
   }
 
-  String _formatDate(DateTime date) {
+  String _formatTime(DateTime date) {
     final now = DateTime.now();
     final difference = now.difference(date);
 
     if (difference.inDays == 0) {
-      if (difference.inHours == 0) {
-        return 'قبل ${difference.inMinutes} دقيقة';
-      }
-      return 'قبل ${difference.inHours} ساعة';
+      return '${date.hour}:${date.minute.toString().padLeft(2, '0')}';
     } else if (difference.inDays == 1) {
       return 'بالأمس';
     } else if (difference.inDays < 7) {

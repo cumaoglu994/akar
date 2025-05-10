@@ -12,35 +12,4 @@ class AppConstants {
   static const String adsImagesBucket = 'ads_images';
   static const String profileImagesBucket = 'profile_images';
   
-  // Categories
-  static const List<String> category = [
-    'سيارات',
-    'عقارات',
-    'إلكترونيات',
-    'أثاث',
-    'ملابس',
-    'أجهزة منزلية',
-    'موبايلات',
-    'ألعاب',
-    'حيوانات',
-    'أخرى',
-  ];
-  
-  // city
-  static const List<String> city = [
-    'دمشق',
-    'حلب',
-    'حمص',
-    'حماة',
-    'اللاذقية',
-    'طرطوس',
-    'دير الزور',
-    'الرقة',
-    'السويداء',
-    'درعا',
-    'إدلب',
-    'القنيطرة',
-    'الحسكة',
-    'ريف دمشق',
-  ];
 } 

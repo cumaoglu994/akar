@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/user_model.dart' as app;
 import '../utils/constants.dart';
-import '../utils/navigation_helper.dart';
-import '../screens/home/home_screen.dart';
+
 
 class AuthProvider extends ChangeNotifier {
   final SupabaseClient _supabase = Supabase.instance.client;

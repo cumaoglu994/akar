@@ -2,10 +2,49 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../utils/constants.dart';
 import '../../services/home_service.dart';
-import '../../models/ad_model.dart';
-import '../../models/category_model.dart';
-import '../../models/location_models.dart';
 import 'ad_details_screen.dart';
+
+class City {
+  final String id;
+  final String name;
+
+  City({required this.id, required this.name});
+
+  factory City.fromJson(Map<String, dynamic> json) {
+    return City(
+      id: json['id'].toString(),
+      name: json['name'].toString(),
+    );
+  }
+}
+
+// Not: Bu widget'i kullanmak için uygulamanızın MaterialApp'inde 
+// locale ve textDirection ayarlarını yapmayı unutmayın:
+// MaterialApp(
+//   locale: const Locale('ar', 'SA'),
+//   localizationsDelegates: const [
+//     GlobalMaterialLocalizations.delegate,
+//     GlobalWidgetsLocalizations.delegate,
+//     GlobalCupertinoLocalizations.delegate,
+//   ],
+//   supportedLocales: const [
+//     Locale('ar', 'SA'),
+//   ],
+// )
+
+class Category {
+  final String id;
+  final String name;
+
+  Category({required this.id, required this.name});
+
+  factory Category.fromJson(Map<String, dynamic> json) {
+    return Category(
+      id: json['id'].toString(),
+      name: json['name'].toString(),
+    );
+  }
+}
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -16,15 +55,16 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   String _searchQuery = '';
-  String _selectedCity = 'الكل';
-  String _selectedCategory = 'الكل';
+  String _selectedCity = 'all';
+  String _selectedCategory = 'all';
   int? _minPrice;
   int? _maxPrice;
   bool _showFilters = false;
-  final HomeService _homeService = HomeService(Supabase.instance.client);
+  final HomeService _homeService = HomeService();
   List<City> _city = [];
   List<Category> _category = [];
   bool _isLoading = true;
+  final _refreshKey = GlobalKey<RefreshIndicatorState>();
 
   @override
   void initState() {
@@ -34,16 +74,42 @@ class _MainScreenState extends State<MainScreen> {
 
   Future<void> _loadData() async {
     try {
-      final city = await _homeService.getCity();
-      final category = await _homeService.getCategory();
-      setState(() {
-        _city = city;
-        _category = category;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() => _isLoading = false);
+      setState(() => _isLoading = true);
+
+      // Şehirleri yükle
+      final cityResponse = await Supabase.instance.client
+          .from('city')
+          .select()
+          .order('id');
+
+      // Kategorileri yükle
+      final categoryResponse = await Supabase.instance.client
+          .from('category')
+          .select()
+          .order('id');
+
       if (mounted) {
+        setState(() {
+          _city = (cityResponse as List).map((data) {
+            return City(
+              id: data['id'].toString(),
+              name: data['name'].toString(),
+            );
+          }).toList();
+
+          _category = (categoryResponse as List).map((data) {
+            return Category(
+              id: data['id'].toString(),
+              name: data['name'].toString(),
+            );
+          }).toList();
+
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('خطأ في تحميل البيانات: $e')),
         );
@@ -51,297 +117,501 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
+  Future<void> _refreshData() async {
+    await _loadData();
+    setState(() {});
+  }
+
+  void _toggleFilters() {
+    setState(() {
+      _showFilters = !_showFilters;
+    });
+  }
+
+  void _applyFilters() {
+    setState(() {
+      _showFilters = false;
+    });
+    // Filtrelerin uygulandığı görsel bir onay
+    ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+        content: Text('تم تطبيق الفلاتر'),
+        duration: Duration(seconds: 1),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  void _resetFilters() {
+    setState(() {
+      _selectedCity = 'all';
+      _selectedCategory = 'all';
+      _minPrice = null;
+      _maxPrice = null;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Arapça için sağdan sola yazım yönü ayarı
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: _buildMainContent(context),
+    );
+  }
+
+  Widget _buildMainContent(BuildContext context) {
     return Column(
       children: [
-        // Search and Filter Bar
-        Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: Column(
+        // Modern Search Bar
+        Container(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Row(
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      decoration: InputDecoration(
-                        hintText: 'ابحث عن إعلان...',
-                        prefixIcon: const Icon(Icons.search),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        filled: true,
-                        fillColor: Colors.grey[100],
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(30),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, 5),
                       ),
-                      onChanged: (value) {
-                        setState(() {
-                          _searchQuery = value;
-                        });
-                      },
-                    ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  ElevatedButton.icon(
-                    onPressed: () {
+                  child: TextField(
+                    decoration: InputDecoration(
+                      hintText: 'ابحث عن إعلان...',
+                      prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 15),
+                    ),
+                    onChanged: (value) {
                       setState(() {
-                        _showFilters = !_showFilters;
+                        _searchQuery = value;
                       });
                     },
-                    icon: const Icon(Icons.filter_list),
-                    label: const Text('تصفية'),
-                    style: ElevatedButton.styleFrom(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                    ),
-                  ),
-                ],
-              ),
-              if (_showFilters)
-                Card(
-                  margin: const EdgeInsets.only(top: 8),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: DropdownButtonFormField<String>(
-                                value: _selectedCity,
-                                decoration: const InputDecoration(
-                                  labelText: 'المدينة',
-                                  border: OutlineInputBorder(),
-                                ),
-                                items: [
-                                  const DropdownMenuItem<String>(
-                                    value: 'الكل',
-                                    child: Text('الكل'),
-                                  ),
-                                  ..._city.map((city) {
-                                    return DropdownMenuItem<String>(
-                                      value: city.id,
-                                      child: Text(city.name),
-                                    );
-                                  }).toList(),
-                                ],
-                                onChanged: (String? newValue) {
-                                  setState(() {
-                                    _selectedCity = newValue!;
-                                  });
-                                },
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: DropdownButtonFormField<String>(
-                                value: _selectedCategory,
-                                decoration: const InputDecoration(
-                                  labelText: 'الفئة',
-                                  border: OutlineInputBorder(),
-                                ),
-                                items: [
-                                  const DropdownMenuItem<String>(
-                                    value: 'الكل',
-                                    child: Text('الكل'),
-                                  ),
-                                  ..._category.map((category) {
-                                    return DropdownMenuItem<String>(
-                                      value: category.id ?? '',
-                                      child: Text(category.name ?? ''),
-                                    );
-                                  }).toList(),
-                                ],
-                                onChanged: (String? newValue) {
-                                  setState(() {
-                                    _selectedCategory = newValue!;
-                                  });
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                decoration: const InputDecoration(
-                                  labelText: 'الحد الأدنى للسعر',
-                                  border: OutlineInputBorder(),
-                                ),
-                                keyboardType: TextInputType.number,
-                                onChanged: (value) {
-                                  setState(() {
-                                    _minPrice = int.tryParse(value);
-                                  });
-                                },
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: TextField(
-                                decoration: const InputDecoration(
-                                  labelText: 'الحد الأقصى للسعر',
-                                  border: OutlineInputBorder(),
-                                ),
-                                keyboardType: TextInputType.number,
-                                onChanged: (value) {
-                                  setState(() {
-                                    _maxPrice = int.tryParse(value);
-                                  });
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
                   ),
                 ),
+              ),
+              const SizedBox(width: 10),
+              Container(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).primaryColor,
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Theme.of(context).primaryColor.withOpacity(0.3),
+                      blurRadius: 10,
+                      offset: const Offset(0, 5),
+                    ),
+                  ],
+                ),
+                child: IconButton(
+                  icon: Icon(
+                    _showFilters ? Icons.close : Icons.tune,
+                    color: Colors.white,
+                  ),
+                  onPressed: _toggleFilters,
+                ),
+              ),
             ],
           ),
         ),
-        Expanded(
-          child: StreamBuilder<List<Map<String, dynamic>>>(
-            stream: Supabase.instance.client
-                .from(AppConstants.adsTable)
-                .stream(primaryKey: ['id'])
-                .order('created_at', ascending: false),
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
-                return Center(child: Text('حدث خطأ: ${snapshot.error}'));
-              }
 
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-
-              var ads = snapshot.data ?? [];
-
-              // Apply filters
-              if (_searchQuery.isNotEmpty) {
-                ads = ads.where((ad) => 
-                  (ad['title'] ?? '').toLowerCase().contains(_searchQuery.toLowerCase())
-                ).toList();
-              }
-
-              if (_selectedCity != 'الكل') {
-                ads = ads.where((ad) => ad['city_id'] == _selectedCity).toList();
-              }
-
-              if (_selectedCategory != 'الكل') {
-                ads = ads.where((ad) => ad['category_id'] == _selectedCategory).toList();
-              }
-
-              if (_minPrice != null) {
-                ads = ads.where((ad) => (ad['price'] ?? 0) >= _minPrice!).toList();
-              }
-
-              if (_maxPrice != null) {
-                ads = ads.where((ad) => (ad['price'] ?? 0) <= _maxPrice!).toList();
-              }
-
-              if (ads.isEmpty) {
-                return const Center(
-                  child: Text('لا توجد إعلانات'),
-                );
-              }
-
-              return ListView.builder(
-                itemCount: ads.length,
-                itemBuilder: (context, index) {
-                  final ad = ads[index];
-                  return Card(
-                    margin: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    child: ListTile(
-                      leading: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: ad['images'] != null && (ad['images'] as List).isNotEmpty
-                            ? Image.network(
-                                ad['images'][0],
-                                width: 60,
-                                height: 60,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Container(
-                                    width: 60,
-                                    height: 60,
-                                    color: Colors.grey[300],
-                                    child: const Icon(Icons.error),
-                                  );
-                                },
-                              )
-                            : Container(
-                                width: 60,
-                                height: 60,
-                                color: Colors.grey[300],
-                                child: const Icon(Icons.image),
-                              ),
-                      ),
-                      title: Text(ad['title'] ?? ''),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '${_formatPrice(ad['price'] ?? 0)} ل.س',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.green,
-                              fontSize: 16,
+        // Kompakt Filtreler
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          height: _showFilters ? 170 : 0,
+          child: SingleChildScrollView(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                children: [
+                  const SizedBox(height: 10),
+                  // İlk satır: Şehir ve Kategori
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildDropdown(
+                          value: _selectedCity,
+                          hint: 'المدينة',
+                          icon: Icons.location_city,
+                          items: [
+                            const DropdownMenuItem(
+                              value: 'all',
+                              child: Text('كل المدن'),
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Icon(Icons.location_on, size: 16, color: Colors.grey[600]),
-                              const SizedBox(width: 4),
-                              Text(
-                                _city.firstWhere(
-                                  (city) => city.id == ad['city_id'],
-                                  orElse: () => City(
-                                    id: '',
-                                    name: 'غير محدد',
-                                    createdAt: DateTime.now(),
-                                    updatedAt: DateTime.now(),
-                                  ),
-                                ).name,
-                                style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                              ),
-                              const SizedBox(width: 8),
-                              Icon(Icons.category, size: 16, color: Colors.grey[600]),
-                              const SizedBox(width: 4),
-                              Text(
-                                _category.firstWhere(
-                                  (category) => category.id == ad['category_id'],
-                                  orElse: () => Category(id: '', name: 'غير محدد'),
-                                ).name ?? 'غير محدد',
-                                style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                              ),
-                            ],
-                          ),
-                        ],
+                            ..._city.map((city) {
+                              return DropdownMenuItem<String>(
+                                value: city.id,
+                                child: Text(city.name),
+                              );
+                            }).toList(),
+                          ],
+                          onChanged: (value) {
+                            if (value != null) {
+                              setState(() {
+                                _selectedCity = value;
+                              });
+                            }
+                          },
+                        ),
                       ),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => AdDetailsScreen(ad: ad),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _buildDropdown(
+                          value: _selectedCategory,
+                          hint: 'الفئة',
+                          icon: Icons.category,
+                          items: [
+                            const DropdownMenuItem(
+                              value: 'all',
+                              child: Text('كل الفئات'),
+                            ),
+                            ..._category.map((category) {
+                              return DropdownMenuItem<String>(
+                                value: category.id,
+                                child: Text(category.name),
+                              );
+                            }).toList(),
+                          ],
+                          onChanged: (value) {
+                            if (value != null) {
+                              setState(() {
+                                _selectedCategory = value;
+                              });
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  // İkinci satır: Fiyat aralığı
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildTextField(
+                          hint: 'الحد الأدنى للسعر',
+                          icon: Icons.money,
+                          keyboardType: TextInputType.number,
+                          onChanged: (value) {
+                            setState(() {
+                              _minPrice = int.tryParse(value);
+                            });
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _buildTextField(
+                          hint: 'الحد الأقصى للسعر',
+                          icon: Icons.money,
+                          keyboardType: TextInputType.number,
+                          onChanged: (value) {
+                            setState(() {
+                              _maxPrice = int.tryParse(value);
+                            });
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  // Üçüncü satır: Butonlar
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton.icon(
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('إعادة تعيين'),
+                        onPressed: _resetFilters,
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.grey[600],
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      ElevatedButton.icon(
+                        icon: const Icon(Icons.check),
+                        label: const Text('تطبيق'),
+                        onPressed: _applyFilters,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Theme.of(context).primaryColor,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
                           ),
-                        );
-                      },
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+
+        // İlan Listesi
+        Expanded(
+          child: RefreshIndicator(
+            key: _refreshKey,
+            onRefresh: _refreshData,
+            child: StreamBuilder<List<Map<String, dynamic>>>(
+              stream: Supabase.instance.client
+                  .from(AppConstants.adsTable)
+                  .stream(primaryKey: ['id'])
+                  .eq('status', 'yes')
+                  .order('created_at', ascending: false),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Center(child: Text('حدث خطأ: ${snapshot.error}'));
+                }
+
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                var ads = snapshot.data ?? [];
+
+                // Filtreleri uygula
+                if (_searchQuery.isNotEmpty) {
+                  ads = ads.where((ad) => 
+                    (ad['title'] ?? '').toLowerCase().contains(_searchQuery.toLowerCase())
+                  ).toList();
+                }
+
+                if (_selectedCity != 'all') {
+                  final selectedCityName = _city.firstWhere(
+                    (city) => city.id == _selectedCity,
+                    orElse: () => City(id: '', name: ''),
+                  ).name;
+                  ads = ads.where((ad) => (ad['city']?.toString() ?? '') == selectedCityName).toList();
+                }
+
+                if (_selectedCategory != 'all') {
+                  final selectedCategoryName = _category.firstWhere(
+                    (category) => category.id == _selectedCategory,
+                    orElse: () => Category(id: '', name: ''),
+                  ).name;
+                  ads = ads.where((ad) => (ad['category']?.toString() ?? '') == selectedCategoryName).toList();
+                }
+
+                if (_minPrice != null) {
+                  ads = ads.where((ad) => (ad['price'] ?? 0) >= _minPrice!).toList();
+                }
+
+                if (_maxPrice != null) {
+                  ads = ads.where((ad) => (ad['price'] ?? 0) <= _maxPrice!).toList();
+                }
+
+                if (ads.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.search_off, size: 80, color: Colors.grey[400]),
+                        const SizedBox(height: 16),
+                        Text(
+                          'لا توجد إعلانات',
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: Colors.grey[600],
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     ),
                   );
-                },
-              );
-            },
+                }
+
+                return ListView.builder(
+                  padding: const EdgeInsets.only(top: 8),
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  itemCount: ads.length,
+                  itemBuilder: (context, index) {
+                    final ad = ads[index];
+                    return _buildAdCard(context, ad);
+                  },
+                );
+              },
+            ),
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildDropdown({
+    required String value,
+    required String hint,
+    required IconData icon,
+    required List<DropdownMenuItem<String>> items,
+    required Function(String?) onChanged,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 5,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: DropdownButtonFormField<String>(
+        value: value,
+        decoration: InputDecoration(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+          prefixIcon: Icon(icon, color: Colors.grey[600], size: 20),
+          hintText: hint,
+          border: InputBorder.none,
+        ),
+        items: items,
+        onChanged: onChanged,
+        icon: const Icon(Icons.arrow_drop_down, color: Colors.grey),
+        isDense: true,
+        isExpanded: true,
+        dropdownColor: Colors.white,
+      ),
+    );
+  }
+
+  Widget _buildTextField({
+    required String hint,
+    required IconData icon,
+    required TextInputType keyboardType,
+    required Function(String) onChanged,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 5,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: TextField(
+        decoration: InputDecoration(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          prefixIcon: Icon(icon, color: Colors.grey[600], size: 20),
+          hintText: hint,
+          border: InputBorder.none,
+        ),
+        keyboardType: keyboardType,
+        onChanged: onChanged,
+      ),
+    );
+  }
+
+  Widget _buildAdCard(BuildContext context, Map<String, dynamic> ad) {
+    return Card(
+      elevation: 2,
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => AdDetailsScreen(ad: ad),
+            ),
+          );
+        },
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // İlan resmi
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+              child: SizedBox(
+                height: 160,
+                width: double.infinity,
+                child: ad['images'] != null && (ad['images'] as List).isNotEmpty
+                    ? Image.network(
+                        ad['images'][0].toString(),
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            color: Colors.grey[300],
+                            child: Icon(Icons.error, size: 50, color: Colors.grey[600]),
+                          );
+                        },
+                      )
+                    : Container(
+                        color: Colors.grey[300],
+                        child: Icon(Icons.image_not_supported, size: 50, color: Colors.grey[600]),
+                      ),
+              ),
+            ),
+            
+            // İlan bilgileri
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        ad['title'] ?? '',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(width: 18,),
+                      Text(
+                        '${_formatPrice(ad['price'] ?? 0)} ل.س',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).primaryColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(Icons.location_on, size: 16, color: Colors.grey[600]),
+                      const SizedBox(width: 4),
+                      Text(
+                        ad['city']?.toString() ?? '',
+                        style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                      ),
+                      const SizedBox(width: 16),
+                      Icon(Icons.category, size: 16, color: Colors.grey[600]),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          ad['category']?.toString() ?? '',
+                          style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -353,4 +623,4 @@ class _MainScreenState extends State<MainScreen> {
     }
     return price.toString();
   }
-} 
+}
