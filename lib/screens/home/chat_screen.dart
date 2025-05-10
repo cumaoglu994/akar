@@ -22,11 +22,20 @@ class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   String? _chatId;
+  bool _isInitialized = false;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    _initializeChat();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_isInitialized) {
+      _initializeChat();
+    }
   }
 
   @override
@@ -37,10 +46,20 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _initializeChat() async {
-    final user = context.read<AuthProvider>().user;
-    if (user != null) {
+    if (_isInitialized) return;
+    
+    try {
+      final user = context.read<AuthProvider>().user;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
       final buyerId = user.id;
       final sellerId = widget.sellerId;
+      
+      if (sellerId.isEmpty) {
+        throw Exception('Invalid seller ID');
+      }
       
       // Create a unique chat ID by combining buyer and seller IDs
       final chatId = buyerId.compareTo(sellerId) < 0
@@ -52,7 +71,7 @@ class _ChatScreenState extends State<ChatScreen> {
           .from(AppConstants.chatsTable)
           .select()
           .eq('id', chatId)
-          .single();
+          .maybeSingle();
       
       if (response == null) {
         await Supabase.instance.client
@@ -67,9 +86,20 @@ class _ChatScreenState extends State<ChatScreen> {
             });
       }
 
-      setState(() {
-        _chatId = chatId;
-      });
+      if (mounted) {
+        setState(() {
+          _chatId = chatId;
+          _isInitialized = true;
+          _error = null;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _isInitialized = true;
+        });
+      }
     }
   }
 
@@ -113,6 +143,39 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_error != null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('المحادثة'),
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 48, color: Colors.red),
+              const SizedBox(height: 16),
+              Text(
+                'حدث خطأ: $_error',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 16),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () {
+                  setState(() {
+                    _isInitialized = false;
+                    _error = null;
+                  });
+                  _initializeChat();
+                },
+                child: const Text('إعادة المحاولة'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     final user = context.read<AuthProvider>().user;
     if (user == null || _chatId == null) {
       return const Scaffold(
