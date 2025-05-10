@@ -19,18 +19,22 @@ class ChatsListScreen extends StatelessWidget {
       stream: Supabase.instance.client
           .from(AppConstants.chatsTable)
           .stream(primaryKey: ['id'])
-          .eq('buyer_id', user.id)
           .order('last_message_time', ascending: false),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return Center(child: Text('حدث خطأ: ${snapshot.error}'));
+          return Center(child: Text('حدث خطأ: \\${snapshot.error}'));
         }
 
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        final chats = snapshot.data ?? [];
+        final chats = (snapshot.data ?? []).where((chat) =>
+          chat['buyer_id'] == user.id || chat['seller_id'] == user.id
+        ).toList();
+        for (final chat in (snapshot.data ?? [])) {
+          print('Current user id: \\${user.id}, Chat buyer_id: \\${chat['buyer_id']}, Chat seller_id: \\${chat['seller_id']}');
+        }
 
         if (chats.isEmpty) {
           return Center(
@@ -61,25 +65,54 @@ class ChatsListScreen extends StatelessWidget {
               final chat = chats[index];
               final isBuyer = chat['buyer_id'] == user.id;
               final otherUserId = isBuyer ? chat['seller_id'] : chat['buyer_id'];
+              final adId = chat['ad_id'];
+
+              print('otherUserId: $otherUserId, adId: $adId');
 
               return FutureBuilder<Map<String, dynamic>>(
-                future: Supabase.instance.client
-                    .from(AppConstants.usersTable)
-                    .select()
-                    .eq('id', otherUserId)
-                    .single(),
-                builder: (context, userSnapshot) {
-                  if (!userSnapshot.hasData) {
+                future: Future.wait([
+                  Supabase.instance.client
+                      .from(AppConstants.usersTable)
+                      .select()
+                      .eq('id', otherUserId)
+                      .maybeSingle(),
+                  Supabase.instance.client
+                      .from(AppConstants.adsTable)
+                      .select()
+                      .eq('id', adId)
+                      .maybeSingle(),
+                ]).then((results) => {
+                  'user': results[0],
+                  'ad': results[1],
+                }),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
                     return const ListTile(
                       leading: CircleAvatar(child: Icon(Icons.person)),
                       title: Text('جاري التحميل...'),
                     );
                   }
+                  if (snapshot.hasError) {
+                    return ListTile(
+                      leading: const CircleAvatar(child: Icon(Icons.error)),
+                      title: Text('خطأ في تحميل البيانات'),
+                      subtitle: Text(snapshot.error.toString()),
+                    );
+                  }
+                  if (!snapshot.hasData || snapshot.data!['user'] == null || snapshot.data!['ad'] == null) {
+                    return const ListTile(
+                      leading: CircleAvatar(child: Icon(Icons.person)),
+                      title: Text('لا يوجد بيانات'),
+                    );
+                  }
 
-                  final otherUser = userSnapshot.data!;
+                  final otherUser = snapshot.data!['user'];
+                  final ad = snapshot.data!['ad'];
                   final lastMessageTime = chat['last_message_time'] != null
                       ? DateTime.parse(chat['last_message_time'])
                       : null;
+
+                  print('user: ${snapshot.data?['user']}, ad: ${snapshot.data?['ad']}');
 
                   return ListTile(
                     leading: CircleAvatar(
@@ -94,6 +127,10 @@ class ChatsListScreen extends StatelessWidget {
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        Text(
+                          ad['title'] ?? 'إعلان',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
                         Text(
                           chat['last_message'] ?? 'لا توجد رسائل',
                           maxLines: 1,
