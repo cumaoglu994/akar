@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:card_swiper/card_swiper.dart';
 import 'package:provider/provider.dart';
+import 'package:cached_network_image/cached_network_image.dart'; // Daha iyi resim yükleme
 import '../../providers/auth_provider.dart';
 import 'chat_screen.dart';
 
@@ -14,259 +15,537 @@ class AdDetailsScreen extends StatefulWidget {
   State<AdDetailsScreen> createState() => _AdDetailsScreenState();
 }
 
-class _AdDetailsScreenState extends State<AdDetailsScreen> {
-  bool _isFavorite = false;
+class _AdDetailsScreenState extends State<AdDetailsScreen> with SingleTickerProviderStateMixin {
   bool _isLoading = false;
+  String? _userName;
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
 
   @override
   void initState() {
     super.initState();
-    _checkFavoriteStatus();
+    _animationController = AnimationController(
+      vsync: this, 
+      duration: const Duration(milliseconds: 500),
+    );
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeIn)
+    );
+    _animationController.forward();
+    _fetchUserName();
   }
 
-  Future<void> _checkFavoriteStatus() async {
-    final userId = Supabase.instance.client.auth.currentUser?.id;
-    if (userId == null) return;
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
 
-    final response = await Supabase.instance.client
-        .from('favorites')
-        .select('ads')
-        .eq('user_id', userId)
-        .single();
-
-    if (response != null && response['ads'] != null) {
-      setState(() {
-        _isFavorite = (response['ads'] as List).contains(widget.ad['id']);
-      });
+  Future<void> _fetchUserName() async {
+    try {
+      final response = await Supabase.instance.client
+          .from('users')
+          .select('name')
+          .eq('id', widget.ad['user_id'])
+          .maybeSingle();
+      
+      if (response != null && mounted) {
+        setState(() {
+          _userName = response['name'];
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching user name: $e');
     }
   }
 
-  Future<void> _toggleFavorite() async {
-    final userId = Supabase.instance.client.auth.currentUser?.id;
-    if (userId == null) return;
-
-    final response = await Supabase.instance.client
-        .from('favorites')
-        .select('ads')
-        .eq('user_id', userId)
-        .single();
-
-    List<String> ads = [];
-    if (response != null && response['ads'] != null) {
-      ads = List<String>.from(response['ads']);
+  void _contactSeller() async {
+    if (_isLoading) return;
+    
+    setState(() => _isLoading = true);
+    try {
+      final user = context.read<AuthProvider>().user;
+      if (user == null) {
+        throw Exception('Kullanıcı giriş yapmamış');
+      }
+      
+      if (!mounted) return;
+      
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ChatScreen(
+            sellerId: widget.ad['user_id'] ?? '',
+            adId: widget.ad['id'] ?? '',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Hata oluştu: ${e.toString()}'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          margin: const EdgeInsets.all(10),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
-
-    if (_isFavorite) {
-      ads.remove(widget.ad['id']);
-    } else {
-      ads.add(widget.ad['id']);
-    }
-
-    await Supabase.instance.client
-        .from('favorites')
-        .upsert({'user_id': userId, 'ads': ads});
-
-    setState(() {
-      _isFavorite = !_isFavorite;
-    });
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final adData = widget.ad;
+    final screenSize = MediaQuery.of(context).size;
 
     return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            expandedHeight: 300,
-            pinned: true,
-            flexibleSpace: FlexibleSpaceBar(
-              background: Swiper(
-                itemBuilder: (BuildContext context, int index) {
-                  final images = adData['images'] as List? ?? [];
-                  if (images.isEmpty) {
-                    return Container(
-                      color: Colors.grey[300],
-                      child: const Icon(Icons.image, size: 50),
-                    );
-                  }
-                  return Image.network(
-                    images[index],
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        color: Colors.grey[300],
-                        child: const Icon(Icons.error, size: 50),
-                      );
-                    },
-                  );
-                },
-                itemCount: (adData['images'] as List?)?.length ?? 1,
-                pagination: const SwiperPagination(
-                  builder: DotSwiperPaginationBuilder(
-                    activeColor: Colors.white,
-                  ),
-                ),
-              ),
+      backgroundColor: theme.scaffoldBackgroundColor,
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 16, top: 8),
+          child: Container(
+            decoration: const BoxDecoration(
+              color: Colors.black26,
+              shape: BoxShape.circle,
             ),
-            actions: [
-              IconButton(
-                icon: Icon(
-                  _isFavorite ? Icons.favorite : Icons.favorite_border,
-                  color: _isFavorite ? Colors.red : Colors.white,
-                ),
-                onPressed: _toggleFavorite,
-              ),
-            ],
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              onPressed: () => Navigator.pop(context),
+            ),
           ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          adData['title'] ?? '',
-                          style: theme.textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.bold,
+        ),
+      ),
+      body: FadeTransition(
+        opacity: _fadeAnimation,
+        child: CustomScrollView(
+          physics: const BouncingScrollPhysics(),
+          slivers: [
+            // Resim Galerisi
+            SliverToBoxAdapter(
+              child: SizedBox(
+                height: screenSize.height * 0.45,
+                child: Stack(
+                  children: [
+                    Swiper(
+                      itemBuilder: (BuildContext context, int index) {
+                        final images = adData['images'] as List? ?? [];
+                        if (images.isEmpty) {
+                          return Container(
+                            color: Colors.grey[200],
+                            child: Icon(Icons.image, size: 80, color: Colors.grey),
+                          );
+                        }
+                        return CachedNetworkImage(
+                          imageUrl: images[index],
+                          fit: BoxFit.cover,
+                          placeholder: (context, url) => Container(
+                            color: Colors.grey[200],
+                            child: const Center(
+                              child: CircularProgressIndicator(),
+                            ),
+                          ),
+                          errorWidget: (context, url, error) => Container(
+                            color: Colors.grey[200],
+                            child: const Icon(Icons.error, size: 50),
+                          ),
+                        );
+                      },
+                      itemCount: (adData['images'] as List?)?.length ?? 1,
+                      pagination: const SwiperPagination(
+                        builder: DotSwiperPaginationBuilder(
+                          activeColor: Colors.white,
+                          color: Colors.white54,
+                          size: 8.0,
+                          activeSize: 10.0,
+                        ),
+                      ),
+                      control: const SwiperControl(
+                        color: Colors.white,
+                        disableColor: Colors.white54,
+                      ),
+                      loop: false,
+                      autoplay: false,
+                    ),
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      child: Container(
+                        height: 70,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withOpacity(0.7),
+                            ],
                           ),
                         ),
                       ),
-                      Container(
+                    ),
+                    Positioned(
+                      bottom: 16,
+                      left: 16,
+                      child: Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
+                          horizontal: 16,
+                          vertical: 8,
                         ),
                         decoration: BoxDecoration(
                           color: theme.colorScheme.primary,
                           borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black26,
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
                         ),
                         child: Text(
                           '${_formatPrice(adData['price'] ?? 0)} ليرة سورية',
-                          style: theme.textTheme.titleLarge?.copyWith(
- color: Colors.white,                            fontWeight: FontWeight.bold,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                      
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  Column(
-                    children: [
-                      _buildDetailRow(
-                        Icons.location_on,
-                        'المدينة',
-                        adData['city'] ?? '',
-                      ),
-                      const SizedBox(height: 12),
-                      _buildDetailRow(
-                        Icons.category,
-                        'الفئة',
-                        adData['category'] ?? '',
-                      ),
-                      const SizedBox(height: 12),
-                      _buildDetailRow(
-                        Icons.calendar_today,
-                        'تاريخ النشر',
-                        _formatDate(DateTime.parse(adData['created_at'] ?? DateTime.now().toIso8601String())),
-                      ),
-                      const SizedBox(height: 12),
-                      _buildDetailRow(
-                        Icons.info,
-                        'الحالة',
-                        adData['status'] == 'yes' ? 'تم الموافقة' : 'في انتظار الموافقة',
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    'الوصف',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    adData['description'] ?? '',
-                    style: theme.textTheme.bodyLarge,
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Supabase.instance.client.auth.currentUser != null
-              ? Row(
+            
+            // İlan Bilgileri
+            SliverToBoxAdapter(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: theme.cardColor,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(30),
+                    topRight: Radius.circular(30),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, -5),
+                    ),
+                  ],
+                ),
+                margin: const EdgeInsets.only(top: 0),
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: _isLoading ? null : () async {
-                          setState(() => _isLoading = true);
-                          try {
-                            final user = context.read<AuthProvider>().user;
-                            if (user == null) {
-                              throw Exception('User not authenticated');
-                            }
-                            
-                            if (!mounted) return;
-                            
-                            await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => ChatScreen(
-                                  sellerId: widget.ad['user_id'] ?? '',
-                                  adId: widget.ad['id'] ?? '',
+                    Row(
+                      children: [
+                        if (adData['status'] == 'yes')
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.green,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.check, color: Colors.white, size: 14),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'تم الموافقة',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
+                              ],
+                            ),
+                          ),
+                        if (adData['status'] != 'yes')
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.orange,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.hourglass_empty, color: Colors.white, size: 14),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'في انتظار الموافقة',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        const Spacer(),
+                        Text(
+                          _formatDate(DateTime.parse(adData['created_at'] ?? DateTime.now().toIso8601String())),
+                          style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      adData['title'] ?? '',
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    
+                    // İlan sahibi bilgisi kartı
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 5,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            backgroundColor: theme.colorScheme.primary.withOpacity(0.2),
+                            radius: 24,
+                            child: Text(
+                              _userName != null && _userName!.isNotEmpty
+                                  ? _userName![0].toUpperCase()
+                                  : '?',
+                              style: TextStyle(
+                                color: theme.colorScheme.primary,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
                               ),
-                            );
-                          } catch (e) {
-                            if (!mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('حدث خطأ: ${e.toString()}'),
-                                backgroundColor: Colors.red,
-                              ),
-                            );
-                          } finally {
-                            if (mounted) {
-                              setState(() => _isLoading = false);
-                            }
-                          }
-                        },
-                        icon: _isLoading 
-                          ? const SizedBox(
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  _userName ?? 'جاري التحميل...',
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Row(
+                                  children: [
+                                    Icon(Icons.location_on, size: 16, color: theme.colorScheme.primary),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      adData['city'] ?? '',
+                                      style: TextStyle(
+                                      color: Colors.grey[600],
+                                      fontSize: 16,
+                                    ),),
+                                  ],
+                                ),
+                                
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 24),
+                    
+                    // İlanın kategorisi
+                    _buildInfoCard(
+                      context,
+                      [
+                        _buildInfoItem(
+                          context,
+                          icon: Icons.category_outlined,
+                          title: 'الفئة',
+                          value: adData['category'] ?? '',
+                        ),
+                      ],
+                    ),
+                    
+                    const SizedBox(height: 24),
+                    
+                    // İlan açıklaması
+                    Text(
+                      'الوصف',
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 5,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        adData['description'] ?? '',
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          height: 1.5,
+                        ),
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 80), // Bottom padding for FAB
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: Supabase.instance.client.auth.currentUser != null
+          ? Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: SizedBox(
+                width: double.infinity,
+                child: FloatingActionButton.extended(
+                  onPressed: _isLoading ? null : _contactSeller,
+                  backgroundColor: theme.colorScheme.primary,
+                  foregroundColor: Colors.white,
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  label: _isLoading
+                      ? Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
                               width: 20,
                               height: 20,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
                                 valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                               ),
-                            )
-                          : const Icon(Icons.chat),
-                        label: Text(_isLoading ? 'جاري التحميل...' : 'تواصل مع المعلن'),
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              'جاري التحميل...',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        )
+                      : Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.chat_bubble_outline),
+                            const SizedBox(width: 12),
+                            Text(
+                              'تواصل مع المعلن',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ),
-                  ],
-                )
-              : const SizedBox.shrink(),
-        ),
+                ),
+              ),
+            )
+          : null,
+    );
+  }
+
+  Widget _buildInfoCard(BuildContext context, List<Widget> children) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 5,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
+      child: Column(
+        children: children,
+      ),
+    );
+  }
+
+  Widget _buildInfoItem(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String value,
+  }) {
+    final theme = Theme.of(context);
+    
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.primary.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(
+            icon,
+            color: theme.colorScheme.primary,
+            size: 20,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: Colors.grey[600],
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              value,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -288,24 +567,7 @@ class _AdDetailsScreenState extends State<AdDetailsScreen> {
     }
   }
 
-  Widget _buildDetailRow(IconData icon, String label, String value) {
-    return Row(
-      children: [
-        Icon(icon, size: 20, color: Colors.grey[600]),
-        const SizedBox(width: 8),
-        Text(
-          label,
-          style: TextStyle(
-            color: Colors.grey[600],
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Text(value),
-      ],
-    );
-  }
-   String _formatPrice(num price) {
+  String _formatPrice(num price) {
     if (price >= 1000000) {
       return '${(price / 1000000).toStringAsFixed(1)} مليون';
     } else if (price >= 1000) {
