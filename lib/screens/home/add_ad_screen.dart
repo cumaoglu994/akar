@@ -488,7 +488,7 @@ class _AddAdScreenState extends State<AddAdScreen> {
               Row(
                 children: [
                   Expanded(
-                    flex: 2,
+                    flex: 1,
                     child: TextFormField(
                       controller: _priceController,
                       keyboardType: TextInputType.number,
@@ -507,24 +507,28 @@ class _AddAdScreenState extends State<AddAdScreen> {
                   const SizedBox(width: 16),
                   Expanded(
                     flex: 1,
-                    child: DropdownButtonFormField<int>(
-                      value: _selectedCurrencyId,
-                      decoration: _getInputDecoration('العملة', Icons.currency_exchange),
-                      items: _currencies.map((currency) {
-                        return DropdownMenuItem<int>(
-                          value: currency['id'],
-                          child: Text('${currency['symbol']} - ${currency['name']}'),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        if (value != null) {
-                          setState(() => _selectedCurrencyId = value);
-                        }
-                      },
-                      dropdownColor: Colors.white,
-                      icon: const Icon(Icons.arrow_drop_down_circle),
-                      style: TextStyle(color: Colors.grey.shade800, fontSize: 16),
-                    ),
+                    child: (() {
+                      final currencyIds = _currencies.map((currency) => currency['id']).toList();
+                      final dropdownCurrencyValue = currencyIds.contains(_selectedCurrencyId) ? _selectedCurrencyId : null;
+                      return DropdownButtonFormField<int>(
+                        value: dropdownCurrencyValue,
+                        decoration: _getInputDecoration('العملة', Icons.currency_exchange),
+                        items: _currencies.map((currency) {
+                          return DropdownMenuItem<int>(
+                            value: currency['id'],
+                            child: Text('${currency['name']}'),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          if (value != null) {
+                            setState(() => _selectedCurrencyId = value);
+                          }
+                        },
+                        dropdownColor: Colors.white,
+                        icon: const Icon(Icons.arrow_drop_down_circle),
+                        style: TextStyle(color: Colors.grey.shade800, fontSize: 16),
+                      );
+                    })(),
                   ),
                 ],
               ),
