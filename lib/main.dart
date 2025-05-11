@@ -12,8 +12,8 @@ void main() async {
   
   try {
     await Supabase.initialize(
-      url: 'https://nyezeglshvbajjhweguc.supabase.co',
-      anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im55ZXplZ2xzaHZiYWpqaHdlZ3VjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY1MTUxNDQsImV4cCI6MjA2MjA5MTE0NH0.U3dpUnU2TH784nWwLy_eLTuWDe1MeTAqKW1pXBcbRyY',
+      url: AppConstants.SupabaseUrl,
+      anonKey: AppConstants.SupabaseAnonKey,
     );
   } catch (e) {
     debugPrint('Supabase başlatma hatası: $e');

@@ -1,3 +1,4 @@
+import 'package:akar/screens/auth/login_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -29,6 +30,11 @@ class ChatsListScreen extends StatelessWidget {
               ElevatedButton.icon(
                 onPressed: () {
                   // Navigate to login screen - implement as needed
+                  Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) =>  LoginScreen(),
+                  ),
+                );
                 },
                 icon: const Icon(Icons.login),
                 label: const Text('تسجيل الدخول'),

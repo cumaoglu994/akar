@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../utils/constants.dart';
 import '../../services/home_service.dart';
-import 'ad_details_screen.dart';
+import 'ads/ad_details_screen.dart';
 
 class City {
   final String id;
@@ -55,7 +55,7 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   String _searchQuery = '';
-  String _selectedCity = 'all';
+  String? _selectedCity = 'all';
   String _selectedCategory = 'all';
   int? _minPrice;
   int? _maxPrice;
@@ -67,12 +67,17 @@ class _MainScreenState extends State<MainScreen> {
   final _refreshKey = GlobalKey<RefreshIndicatorState>();
   List<Map<String, dynamic>> _ads = [];
   RealtimeChannel? _channel;
+  List<String> _countries = [];
+  String? _selectedCountry;
+  List<dynamic> _filteredCities = [];
+  List<dynamic> _cities = [];
 
   @override
   void initState() {
     super.initState();
     _loadData();
     _setupRealtimeSubscription();
+    _loadCities();
   }
 
   @override
@@ -118,6 +123,8 @@ class _MainScreenState extends State<MainScreen> {
           .eq('status', 'yes')
           .order('created_at', ascending: false);
 
+      debugPrint('Supabase ads response: ' + adsResponse.toString());
+
       if (mounted) {
         setState(() {
           _city = (cityResponse as List).map((data) {
@@ -134,11 +141,42 @@ class _MainScreenState extends State<MainScreen> {
             );
           }).toList();
 
-          _ads = (adsResponse as List).cast<Map<String, dynamic>>();
+          // Parse ads and handle images array
+          _ads = (adsResponse as List).map((ad) {
+            // Parse images string to List
+            if (ad['images'] != null) {
+              try {
+                final imagesStr = ad['images'].toString();
+                debugPrint('Processing images for ad ${ad['title']}: $imagesStr');
+                
+                if (imagesStr.startsWith('"') && imagesStr.endsWith('"')) {
+                  // Remove the outer quotes and parse the JSON array
+                  final cleanStr = imagesStr.substring(1, imagesStr.length - 1);
+                  final images = List<String>.from(
+                    (cleanStr as String).split(',').map((url) => url.trim().replaceAll('"', '')),
+                  );
+                  debugPrint('Parsed images: $images');
+                  ad['images'] = images;
+                }
+              } catch (e) {
+                debugPrint('Error parsing images for ad ${ad['title']}: $e');
+                ad['images'] = [];
+              }
+            }
+            return ad as Map<String, dynamic>;
+          }).toList();
+
+          debugPrint('Total ads loaded: ${_ads.length}');
+          debugPrint('Ads titles: ${_ads.map((ad) => ad['title']).toList()}');
+
           _isLoading = false;
         });
+
+        // Veriler yüklendikten sonra filtreleri sıfırla
+        _resetFilters();
       }
     } catch (e) {
+      debugPrint('Error in _loadData: $e');
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -179,7 +217,31 @@ class _MainScreenState extends State<MainScreen> {
       _selectedCategory = 'all';
       _minPrice = null;
       _maxPrice = null;
+      _selectedCountry = _countries.isNotEmpty ? _countries[0] : null;
+      _filteredCities = _cities.where((city) => city['country'] == _selectedCountry).toList();
     });
+  }
+
+  Future<void> _loadCities() async {
+    try {
+      final cities = await _homeService.getCity();
+      setState(() {
+        _cities = cities;
+        // Ülkeleri benzersiz olarak çıkar
+        _countries = _cities.map((city) => city['country'].toString()).toSet().toList();
+        if (_countries.isNotEmpty) {
+          _selectedCountry = _countries[0];
+          _filteredCities = _cities.where((city) => city['country'] == _selectedCountry).toList();
+          if (_filteredCities.isNotEmpty) {
+            _selectedCity = _filteredCities[0]['name']?.toString();
+          }
+        }
+      });
+    } catch (e) {
+      if (mounted) {
+        _showErrorSnackBar('خطأ في تحميل المدن: $e');
+      }
+    }
   }
 
   @override
@@ -192,215 +254,218 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _buildMainContent(BuildContext context) {
-    return Column(
-      children: [
-        // Modern Search Bar
-        Container(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: Container(
+    return SafeArea(
+      child: Column(
+        children: [
+          // Modern Search Bar
+          Container(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(30),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, 5),
+                        ),
+                      ],
+                    ),
+                    child: TextField(
+                      decoration: InputDecoration(
+                        hintText: 'ابحث عن إعلان...',
+                        prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 15),
+                      ),
+                      onChanged: (value) {
+                        setState(() {
+                          _searchQuery = value;
+                        });
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Container(
                   decoration: BoxDecoration(
-                    color: Colors.grey[100],
+                    color: Theme.of(context).primaryColor,
                     borderRadius: BorderRadius.circular(30),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
+                        color: Theme.of(context).primaryColor.withOpacity(0.3),
                         blurRadius: 10,
                         offset: const Offset(0, 5),
                       ),
                     ],
                   ),
-                  child: TextField(
-                    decoration: InputDecoration(
-                      hintText: 'ابحث عن إعلان...',
-                      prefixIcon: const Icon(Icons.search, color: Colors.grey),
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 15),
+                  child: IconButton(
+                    icon: Icon(
+                      _showFilters ? Icons.close : Icons.tune,
+                      color: Colors.white,
                     ),
-                    onChanged: (value) {
-                      setState(() {
-                        _searchQuery = value;
-                      });
-                    },
+                    onPressed: _toggleFilters,
                   ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Container(
-                decoration: BoxDecoration(
-                  color: Theme.of(context).primaryColor,
-                  borderRadius: BorderRadius.circular(30),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Theme.of(context).primaryColor.withOpacity(0.3),
-                      blurRadius: 10,
-                      offset: const Offset(0, 5),
+              ],
+            ),
+          ),
+
+          // Kompakt Filtreler
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            height: _showFilters ? 170 : 0,
+            child: SingleChildScrollView(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(height: 10),
+                    // İlk satır: Ülke ve Şehir
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildDropdown(
+                            value: _selectedCountry,
+                            hint: 'الدولة',
+                            icon: Icons.flag,
+                            items: _countries.map((country) {
+                              return DropdownMenuItem<String>(
+                                value: country,
+                                child: Text(country),
+                              );
+                            }).toList(),
+                            onChanged: (value) {
+                              if (value != null) {
+                                setState(() {
+                                  _selectedCountry = value;
+                                  _filteredCities = _cities.where((city) => city['country'] == value).toList();
+                                  _selectedCity = _filteredCities.isNotEmpty ? _filteredCities[0]['name']?.toString() : null;
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: (() {
+                            final cityNames = _filteredCities
+                                .map((city) => city['name']?.toString())
+                                .where((name) => name != null && name.isNotEmpty)
+                                .toSet()
+                                .toList();
+                            final dropdownCityValue = cityNames.contains(_selectedCity) ? _selectedCity : null;
+                            return _buildDropdown(
+                              value: dropdownCityValue,
+                              hint: 'المدينة',
+                              icon: Icons.location_city,
+                              items: cityNames.map((name) {
+                                return DropdownMenuItem<String>(
+                                  value: name,
+                                  child: Text(name ?? ''),
+                                );
+                              }).toList(),
+                              onChanged: (value) {
+                                if (value != null) {
+                                  setState(() => _selectedCity = value);
+                                }
+                              },
+                            );
+                          })(),
+                        ), const SizedBox(width: 10),
+                         Expanded(
+                           child: _buildCategoryDropdown(),
+                         ),
+                      ],
+                    ),
+                    
+                    const SizedBox(height: 10),
+                    // İkinci satır: Fiyat aralığı
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildTextField(
+                            hint: 'الحد الأدنى للسعر',
+                            icon: Icons.money,
+                            keyboardType: TextInputType.number,
+                            onChanged: (value) {
+                              setState(() {
+                                _minPrice = int.tryParse(value);
+                              });
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _buildTextField(
+                            hint: 'الحد الأقصى للسعر',
+                            icon: Icons.money,
+                            keyboardType: TextInputType.number,
+                            onChanged: (value) {
+                              setState(() {
+                                _maxPrice = int.tryParse(value);
+                              });
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    // Üçüncü satır: Butonlar
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton.icon(
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('إعادة تعيين'),
+                          onPressed: _resetFilters,
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.grey[600],
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.check),
+                          label: const Text('تطبيق'),
+                          onPressed: _applyFilters,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Theme.of(context).primaryColor,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-                child: IconButton(
-                  icon: Icon(
-                    _showFilters ? Icons.close : Icons.tune,
-                    color: Colors.white,
-                  ),
-                  onPressed: _toggleFilters,
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        // Kompakt Filtreler
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          height: _showFilters ? 170 : 0,
-          child: SingleChildScrollView(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Column(
-                children: [
-                  const SizedBox(height: 10),
-                  // İlk satır: Şehir ve Kategori
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildDropdown(
-                          value: _selectedCity,
-                          hint: 'المدينة',
-                          icon: Icons.location_city,
-                          items: [
-                            const DropdownMenuItem(
-                              value: 'all',
-                              child: Text('كل المدن'),
-                            ),
-                            ..._city.map((city) {
-                              return DropdownMenuItem<String>(
-                                value: city.id,
-                                child: Text(city.name),
-                              );
-                            }).toList(),
-                          ],
-                          onChanged: (value) {
-                            if (value != null) {
-                              setState(() {
-                                _selectedCity = value;
-                              });
-                            }
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _buildDropdown(
-                          value: _selectedCategory,
-                          hint: 'الفئة',
-                          icon: Icons.category,
-                          items: [
-                            const DropdownMenuItem(
-                              value: 'all',
-                              child: Text('كل الفئات'),
-                            ),
-                            ..._category.map((category) {
-                              return DropdownMenuItem<String>(
-                                value: category.id,
-                                child: Text(category.name),
-                              );
-                            }).toList(),
-                          ],
-                          onChanged: (value) {
-                            if (value != null) {
-                              setState(() {
-                                _selectedCategory = value;
-                              });
-                            }
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  // İkinci satır: Fiyat aralığı
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildTextField(
-                          hint: 'الحد الأدنى للسعر',
-                          icon: Icons.money,
-                          keyboardType: TextInputType.number,
-                          onChanged: (value) {
-                            setState(() {
-                              _minPrice = int.tryParse(value);
-                            });
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _buildTextField(
-                          hint: 'الحد الأقصى للسعر',
-                          icon: Icons.money,
-                          keyboardType: TextInputType.number,
-                          onChanged: (value) {
-                            setState(() {
-                              _maxPrice = int.tryParse(value);
-                            });
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  // Üçüncü satır: Butonlar
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton.icon(
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('إعادة تعيين'),
-                        onPressed: _resetFilters,
-                        style: TextButton.styleFrom(
-                          foregroundColor: Colors.grey[600],
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      ElevatedButton.icon(
-                        icon: const Icon(Icons.check),
-                        label: const Text('تطبيق'),
-                        onPressed: _applyFilters,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Theme.of(context).primaryColor,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
               ),
             ),
           ),
-        ),
 
-        // İlan Listesi
-        Expanded(
-          child: RefreshIndicator(
-            key: _refreshKey,
-            onRefresh: _loadData,
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _buildAdsList(),
+          // İlan Listesi
+          Expanded(
+            child: RefreshIndicator(
+              key: _refreshKey,
+              onRefresh: _loadData,
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _buildAdsList(),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
   Widget _buildDropdown({
-    required String value,
+    required String? value,
     required String hint,
     required IconData icon,
     required List<DropdownMenuItem<String>> items,
@@ -468,52 +533,57 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _buildAdsList() {
-    var filteredAds = _ads;
+    var filteredAds = _ads.where((ad) {
+      // Arama filtresi
+      if (_searchQuery.isNotEmpty) {
+        final title = ad['title']?.toString().toLowerCase() ?? '';
+        final description = ad['description']?.toString().toLowerCase() ?? '';
+        if (!title.contains(_searchQuery.toLowerCase()) && 
+            !description.contains(_searchQuery.toLowerCase())) {
+          return false;
+        }
+      }
 
-    // Filtreleri uygula
-    if (_searchQuery.isNotEmpty) {
-      filteredAds = filteredAds.where((ad) => 
-        (ad['title'] ?? '').toLowerCase().contains(_searchQuery.toLowerCase())
-      ).toList();
-    }
+      // Şehir filtresi
+      if (_selectedCity != null && _selectedCity != 'all') {
+        final adCity = ad['city']?.toString() ?? '';
+        if (adCity != _selectedCity) {
+          return false;
+        }
+      }
 
-    if (_selectedCity != 'all') {
-      final selectedCityName = _city.firstWhere(
-        (city) => city.id == _selectedCity,
-        orElse: () => City(id: '', name: ''),
-      ).name;
-      filteredAds = filteredAds.where((ad) => (ad['city']?.toString() ?? '') == selectedCityName).toList();
-    }
+      // Kategori filtresi
+      if (_selectedCategory != 'all') {
+        final adCategory = ad['category']?.toString() ?? '';
+        if (adCategory != _selectedCategory) {
+          return false;
+        }
+      }
 
-    if (_selectedCategory != 'all') {
-      final selectedCategoryName = _category.firstWhere(
-        (category) => category.id == _selectedCategory,
-        orElse: () => Category(id: '', name: ''),
-      ).name;
-      filteredAds = filteredAds.where((ad) => (ad['category']?.toString() ?? '') == selectedCategoryName).toList();
-    }
+      // Fiyat filtresi
+      final price = ad['price'] as num? ?? 0;
+      if (_minPrice != null && price < _minPrice!) {
+        return false;
+      }
+      if (_maxPrice != null && price > _maxPrice!) {
+        return false;
+      }
 
-    if (_minPrice != null) {
-      filteredAds = filteredAds.where((ad) => (ad['price'] ?? 0) >= _minPrice!).toList();
-    }
-
-    if (_maxPrice != null) {
-      filteredAds = filteredAds.where((ad) => (ad['price'] ?? 0) <= _maxPrice!).toList();
-    }
+      return true;
+    }).toList();
 
     if (filteredAds.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.search_off, size: 80, color: Colors.grey[400]),
+            Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
             const SizedBox(height: 16),
             Text(
-              'لا توجد إعلانات',
+              'لا توجد نتائج',
               style: TextStyle(
                 fontSize: 18,
                 color: Colors.grey[600],
-                fontWeight: FontWeight.bold,
               ),
             ),
           ],
@@ -522,8 +592,6 @@ class _MainScreenState extends State<MainScreen> {
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.only(top: 8),
-      physics: const AlwaysScrollableScrollPhysics(),
       itemCount: filteredAds.length,
       itemBuilder: (context, index) {
         final ad = filteredAds[index];
@@ -642,5 +710,38 @@ class _MainScreenState extends State<MainScreen> {
       return '${(price / 1000).toStringAsFixed(1)} ألف';
     }
     return price.toString();
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  Widget _buildCategoryDropdown() {
+    return _buildDropdown(
+      value: _selectedCategory,
+      hint: 'الفئة',
+      icon: Icons.category,
+      items: [
+        const DropdownMenuItem(
+          value: 'all',
+          child: Text('الكل'),
+        ),
+        ..._category.map((category) {
+          return DropdownMenuItem<String>(
+            value: category.name,
+            child: Text(category.name),
+          );
+        }).toList(),
+      ],
+      onChanged: (value) {
+        if (value != null) {
+          setState(() {
+            _selectedCategory = value;
+          });
+        }
+      },
+    );
   }
 }

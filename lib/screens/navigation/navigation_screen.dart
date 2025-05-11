@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../home/main_screen.dart';
-import '../home/my_ads_screen.dart';
-import '../home/add_ad_screen.dart';
+import '../home/ads/my_ads_screen.dart';
+import '../home/ads/add_ad_screen.dart';
 import '../home/chats_list_screen.dart';
 import '../home/profile/profile_screen.dart';
 
@@ -18,15 +18,17 @@ class _NavigationScreenState extends State<NavigationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: const [
-          MainScreen(),
-          MyAdsScreen(),
-          AddAdScreen(),
-          ChatsListScreen(),
-          ProfileScreen(),
-        ],
+      body: SafeArea(
+        child: IndexedStack(
+          index: _selectedIndex,
+          children: const [
+            MainScreen(),
+            MyAdsScreen(),
+            AddAdScreen(),
+            ChatsListScreen(),
+            ProfileScreen(),
+          ],
+        ),
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,

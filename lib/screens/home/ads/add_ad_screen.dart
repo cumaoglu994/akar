@@ -7,8 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../providers/auth_provider.dart';
-import '../../services/home_service.dart';
+import '../../../providers/auth_provider.dart';
+import '../../../services/home_service.dart';
 
 class AddAdScreen extends StatefulWidget {
   const AddAdScreen({super.key});
@@ -24,10 +24,15 @@ class _AddAdScreenState extends State<AddAdScreen> {
   final _priceController = TextEditingController();
   String? _selectedCategory;
   String? _selectedCity;
+  int? _selectedCurrencyId;
   List<File> _images = [];
   bool _isLoading = false;
   List<dynamic> _categories = [];
   List<dynamic> _cities = [];
+  List<dynamic> _currencies = [];
+  String? _selectedCountry;
+  List<String> _countries = [];
+  List<dynamic> _filteredCities = [];
   final HomeService _homeService = HomeService();
 
   @override
@@ -35,6 +40,7 @@ class _AddAdScreenState extends State<AddAdScreen> {
     super.initState();
     _loadCategories();
     _loadCities();
+    _loadCurrencies();
   }
 
   Future<void> _loadCategories() async {
@@ -58,13 +64,36 @@ class _AddAdScreenState extends State<AddAdScreen> {
       final cities = await _homeService.getCity();
       setState(() {
         _cities = cities;
-        if (cities.isNotEmpty) {
-          _selectedCity = cities[0]['name']?.toString();
+        _countries = _cities.map((city) => city['country'].toString()).toSet().toList();
+        if (_countries.isNotEmpty) {
+          _selectedCountry = _countries[0];
+          _filteredCities = _cities.where((city) => city['country'] == _selectedCountry).toList();
+          if (_filteredCities.isNotEmpty) {
+            _selectedCity = _filteredCities[0]['name']?.toString();
+          } else {
+            _selectedCity = null;
+          }
         }
       });
     } catch (e) {
       if (mounted) {
         _showErrorSnackBar('خطأ في تحميل المدن: $e');
+      }
+    }
+  }
+
+  Future<void> _loadCurrencies() async {
+    try {
+      final currencies = await _homeService.getCurrencies();
+      setState(() {
+        _currencies = currencies;
+        if (currencies.isNotEmpty) {
+          _selectedCurrencyId = currencies[0]['id'];
+        }
+      });
+    } catch (e) {
+      if (mounted) {
+        _showErrorSnackBar('خطأ في تحميل العملات: $e');
       }
     }
   }
@@ -222,6 +251,7 @@ class _AddAdScreenState extends State<AddAdScreen> {
         'title': _titleController.text,
         'description': _descriptionController.text,
         'price': int.parse(_priceController.text),
+        'currency_id': _selectedCurrencyId,
         'city': _selectedCity,
         'category': _selectedCategory,
         'images': imageUrls,
@@ -455,19 +485,52 @@ class _AddAdScreenState extends State<AddAdScreen> {
                 },
               ),
               const SizedBox(height: 16),
-              TextFormField(
-                controller: _priceController,
-                keyboardType: TextInputType.number,
-                decoration: _getInputDecoration('السعر (ل.س)', Icons.monetization_on),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'الرجاء إدخال السعر';
-                  }
-                  if (int.tryParse(value) == null) {
-                    return 'الرجاء إدخال رقم صحيح';
-                  }
-                  return null;
-                },
+              Row(
+                children: [
+                  Expanded(
+                    flex: 1,
+                    child: TextFormField(
+                      controller: _priceController,
+                      keyboardType: TextInputType.number,
+                      decoration: _getInputDecoration('السعر', Icons.monetization_on),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'الرجاء إدخال السعر';
+                        }
+                        if (int.tryParse(value) == null) {
+                          return 'الرجاء إدخال رقم صحيح';
+                        }
+                        return null;
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    flex: 1,
+                    child: (() {
+                      final currencyIds = _currencies.map((currency) => currency['id']).toList();
+                      final dropdownCurrencyValue = currencyIds.contains(_selectedCurrencyId) ? _selectedCurrencyId : null;
+                      return DropdownButtonFormField<int>(
+                        value: dropdownCurrencyValue,
+                        decoration: _getInputDecoration('العملة', Icons.currency_exchange),
+                        items: _currencies.map((currency) {
+                          return DropdownMenuItem<int>(
+                            value: currency['id'],
+                            child: Text('${currency['name']}'),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          if (value != null) {
+                            setState(() => _selectedCurrencyId = value);
+                          }
+                        },
+                        dropdownColor: Colors.white,
+                        icon: const Icon(Icons.arrow_drop_down_circle),
+                        style: TextStyle(color: Colors.grey.shade800, fontSize: 16),
+                      );
+                    })(),
+                  ),
+                ],
               ),
               const SizedBox(height: 24),
               const Text(
@@ -479,13 +542,47 @@ class _AddAdScreenState extends State<AddAdScreen> {
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                value: _selectedCity,
+                value: _selectedCountry,
+                decoration: _getInputDecoration('الدولة', Icons.flag),
+                items: _countries.map((country) {
+                  return DropdownMenuItem<String>(
+                    value: country,
+                    child: Text(country),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() {
+                      _selectedCountry = value;
+                      _filteredCities = _cities.where((city) => city['country'] == value).toList();
+                      _selectedCity = _filteredCities.isNotEmpty ? _filteredCities[0]['name']?.toString() : null;
+                    });
+                  }
+                },
+                dropdownColor: Colors.white,
+                icon: const Icon(Icons.arrow_drop_down_circle),
+                style: TextStyle(color: Colors.grey.shade800, fontSize: 16),
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: (() {
+                  final cityNames = _filteredCities
+                      .map((city) => city['name']?.toString())
+                      .where((name) => name != null && name.isNotEmpty)
+                      .toSet()
+                      .toList();
+                  return cityNames.contains(_selectedCity) ? _selectedCity : null;
+                })(),
                 decoration: _getInputDecoration('المدينة', Icons.location_city),
-                items: _cities.map((city) {
-                  final name = city['name']?.toString() ?? '';
+                items: _filteredCities
+                    .map((city) => city['name']?.toString())
+                    .where((name) => name != null && name.isNotEmpty)
+                    .toSet()
+                    .toList()
+                    .map((name) {
                   return DropdownMenuItem<String>(
                     value: name,
-                    child: Text(name),
+                    child: Text(name ?? ''),
                   );
                 }).toList(),
                 onChanged: (value) {

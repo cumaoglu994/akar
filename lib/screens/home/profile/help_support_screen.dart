@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class HelpSupportScreen extends StatelessWidget {
   const HelpSupportScreen({super.key});
@@ -38,43 +39,46 @@ class HelpSupportScreen extends StatelessWidget {
 
   Widget _buildContactCard(BuildContext context) {
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            const Icon(
-              Icons.support_agent,
-              size: 48,
-              color: Colors.blue,
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'نحن هنا للمساعدة',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
+      child: Container(
+        width: double.infinity,
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              const Icon(
+                Icons.support_agent,
+                size: 48,
+                color: Colors.blue,
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'يمكنك التواصل معنا على مدار الساعة',
-              style: TextStyle(
-                color: Colors.grey[600],
-                fontSize: 16,
+              const SizedBox(height: 16),
+              const Text(
+                'نحن هنا للمساعدة',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: () {
-                // TODO: Implement chat support
-              },
-              icon: const Icon(Icons.chat),
-              label: const Text('ابدأ المحادثة'),
-              style: ElevatedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 50),
+              const SizedBox(height: 8),
+              Text(
+                'يمكنك التواصل معنا على مدار الساعة',
+                style: TextStyle(
+                  color: Colors.grey[600],
+                  fontSize: 16,
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+              // ElevatedButton.icon(
+              //   onPressed: () {
+              //     // TODO: Implement chat support
+              //   },
+              //   icon: const Icon(Icons.chat),
+              //   label: const Text('ابدأ المحادثة'),
+              //   style: ElevatedButton.styleFrom(
+              //     minimumSize: const Size(double.infinity, 50),
+              //   ),
+              // ),
+            ],
+          ),
         ),
       ),
     );
@@ -138,28 +142,68 @@ class HelpSupportScreen extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
+
         _buildSupportOption(
           icon: Icons.email,
           title: 'البريد الإلكتروني',
-          subtitle: 'support@example.com',
-          onTap: () {
-            // TODO: Implement email support
+          subtitle: Text('mustafacuma120@gmail.com'),
+          onTap: () async {
+            final Uri emailUri = Uri(
+              scheme: 'mailto',
+              path: 'mustafacuma120@gmail.com',
+              queryParameters: {
+                'subject': 'الدعم الفني',
+                'body': 'السلام عليكم،',
+              },
+            );
+            if (await canLaunchUrl(emailUri)) {
+              await launchUrl(emailUri, mode: LaunchMode.externalApplication);
+            } else {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('لا يمكن فتح البريد الإلكتروني')),
+                );
+              }
+            }
           },
         ),
+
         _buildSupportOption(
           icon: Icons.phone,
           title: 'الهاتف',
-          subtitle: '+966 50 000 0000',
-          onTap: () {
-            // TODO: Implement phone support
+          subtitle: Text('+953 531 855 08 24', textDirection: TextDirection.ltr),
+          onTap: () async {
+            final Uri phoneUri = Uri(
+              scheme: 'tel',
+              path: '+9535318550824',
+            );
+            if (await canLaunchUrl(phoneUri)) {
+              await launchUrl(phoneUri, mode: LaunchMode.externalApplication);
+            } else {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('لا يمكن فتح تطبيق الهاتف')),
+                );
+              }
+            }
           },
         ),
+
         _buildSupportOption(
           icon: Icons.location_on,
           title: 'العنوان',
-          subtitle: 'الرياض، المملكة العربية السعودية',
-          onTap: () {
-            // TODO: Implement location
+          subtitle: Text(' الجمهورية العربية السورية , إدلب'),
+          onTap: () async {
+            final Uri mapUri = Uri.parse('https://maps.app.goo.gl/qAvtBEwtDBmpaaBE6');
+            if (await canLaunchUrl(mapUri)) {
+              await launchUrl(mapUri, mode: LaunchMode.externalApplication);
+            } else {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('لا يمكن فتح الخريطة')),
+                );
+              }
+            }
           },
         ),
       ],
@@ -169,7 +213,7 @@ class HelpSupportScreen extends StatelessWidget {
   Widget _buildSupportOption({
     required IconData icon,
     required String title,
-    required String subtitle,
+    required Widget? subtitle,
     required VoidCallback onTap,
   }) {
     return Card(
@@ -177,7 +221,7 @@ class HelpSupportScreen extends StatelessWidget {
       child: ListTile(
         leading: Icon(icon, color: Colors.blue),
         title: Text(title),
-        subtitle: Text(subtitle),
+        subtitle: subtitle,
         trailing: const Icon(Icons.arrow_forward_ios, size: 16),
         onTap: onTap,
       ),
