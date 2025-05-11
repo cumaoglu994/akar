@@ -18,15 +18,17 @@ class _NavigationScreenState extends State<NavigationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: const [
-          MainScreen(),
-          MyAdsScreen(),
-          AddAdScreen(),
-          ChatsListScreen(),
-          ProfileScreen(),
-        ],
+      body: SafeArea(
+        child: IndexedStack(
+          index: _selectedIndex,
+          children: const [
+            MainScreen(),
+            MyAdsScreen(),
+            AddAdScreen(),
+            ChatsListScreen(),
+            ProfileScreen(),
+          ],
+        ),
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,

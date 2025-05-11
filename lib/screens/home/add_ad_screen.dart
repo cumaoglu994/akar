@@ -30,6 +30,9 @@ class _AddAdScreenState extends State<AddAdScreen> {
   List<dynamic> _categories = [];
   List<dynamic> _cities = [];
   List<dynamic> _currencies = [];
+  String? _selectedCountry;
+  List<String> _countries = [];
+  List<dynamic> _filteredCities = [];
   final HomeService _homeService = HomeService();
 
   @override
@@ -61,8 +64,15 @@ class _AddAdScreenState extends State<AddAdScreen> {
       final cities = await _homeService.getCity();
       setState(() {
         _cities = cities;
-        if (cities.isNotEmpty) {
-          _selectedCity = cities[0]['name']?.toString();
+        _countries = _cities.map((city) => city['country'].toString()).toSet().toList();
+        if (_countries.isNotEmpty) {
+          _selectedCountry = _countries[0];
+          _filteredCities = _cities.where((city) => city['country'] == _selectedCountry).toList();
+          if (_filteredCities.isNotEmpty) {
+            _selectedCity = _filteredCities[0]['name']?.toString();
+          } else {
+            _selectedCity = null;
+          }
         }
       });
     } catch (e) {
@@ -528,9 +538,32 @@ class _AddAdScreenState extends State<AddAdScreen> {
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
+                value: _selectedCountry,
+                decoration: _getInputDecoration('الدولة', Icons.flag),
+                items: _countries.map((country) {
+                  return DropdownMenuItem<String>(
+                    value: country,
+                    child: Text(country),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() {
+                      _selectedCountry = value;
+                      _filteredCities = _cities.where((city) => city['country'] == value).toList();
+                      _selectedCity = _filteredCities.isNotEmpty ? _filteredCities[0]['name']?.toString() : null;
+                    });
+                  }
+                },
+                dropdownColor: Colors.white,
+                icon: const Icon(Icons.arrow_drop_down_circle),
+                style: TextStyle(color: Colors.grey.shade800, fontSize: 16),
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
                 value: _selectedCity,
                 decoration: _getInputDecoration('المدينة', Icons.location_city),
-                items: _cities.map((city) {
+                items: _filteredCities.map((city) {
                   final name = city['name']?.toString() ?? '';
                   return DropdownMenuItem<String>(
                     value: name,
