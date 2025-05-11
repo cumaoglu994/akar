@@ -374,35 +374,36 @@ class _MainScreenState extends State<MainScreen> {
                               },
                             );
                           })(),
-                        ),
+                        ), const SizedBox(width: 10),
+                         Expanded(
+                           child: _buildDropdown(
+                                                 value: _selectedCategory,
+                                                 hint: 'الفئة',
+                                                 icon: Icons.category,
+                                                 items: [
+                                                   const DropdownMenuItem(
+                            value: 'all',
+                            child: Text('الفئات'),
+                                                   ),
+                                                   ..._category.map((category) {
+                            return DropdownMenuItem<String>(
+                              value: category.id,
+                              child: Text(category.name),
+                            );
+                                                   }).toList(),
+                                                 ],
+                                                 onChanged: (value) {
+                                                   if (value != null) {
+                            setState(() {
+                              _selectedCategory = value;
+                            });
+                                                   }
+                                                 },
+                                               ),
+                         ),
                       ],
                     ),
-                    const SizedBox(height: 10),
-                    // İkinci satır: Kategori
-                    _buildDropdown(
-                      value: _selectedCategory,
-                      hint: 'الفئة',
-                      icon: Icons.category,
-                      items: [
-                        const DropdownMenuItem(
-                          value: 'all',
-                          child: Text('كل الفئات'),
-                        ),
-                        ..._category.map((category) {
-                          return DropdownMenuItem<String>(
-                            value: category.id,
-                            child: Text(category.name),
-                          );
-                        }).toList(),
-                      ],
-                      onChanged: (value) {
-                        if (value != null) {
-                          setState(() {
-                            _selectedCategory = value;
-                          });
-                        }
-                      },
-                    ),
+                    
                     const SizedBox(height: 10),
                     // İkinci satır: Fiyat aralığı
                     Row(
@@ -552,10 +553,62 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _buildAdsList() {
-    var filteredAds = _ads; // Filtreleri kaldırdım, tüm ilanlar gösterilecek
+    var filteredAds = _ads.where((ad) {
+      // Arama filtresi
+      if (_searchQuery.isNotEmpty) {
+        final title = ad['title']?.toString().toLowerCase() ?? '';
+        final description = ad['description']?.toString().toLowerCase() ?? '';
+        if (!title.contains(_searchQuery.toLowerCase()) && 
+            !description.contains(_searchQuery.toLowerCase())) {
+          return false;
+        }
+      }
+
+      // Şehir filtresi
+      if (_selectedCity != null && _selectedCity != 'all') {
+        final adCity = ad['city']?.toString() ?? '';
+        if (adCity != _selectedCity) {
+          return false;
+        }
+      }
+
+      // Kategori filtresi
+      if (_selectedCategory != 'all') {
+        final adCategory = ad['category_id']?.toString() ?? '';
+        if (adCategory != _selectedCategory) {
+          return false;
+        }
+      }
+
+      // Fiyat filtresi
+      final price = ad['price'] as num? ?? 0;
+      if (_minPrice != null && price < _minPrice!) {
+        return false;
+      }
+      if (_maxPrice != null && price > _maxPrice!) {
+        return false;
+      }
+
+      return true;
+    }).toList();
 
     if (filteredAds.isEmpty) {
-      return Center(child: Text('İlan yok'));
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              'لا توجد نتائج',
+              style: TextStyle(
+                fontSize: 18,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+      );
     }
 
     return ListView.builder(
