@@ -561,13 +561,24 @@ class _AddAdScreenState extends State<AddAdScreen> {
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                value: _selectedCity,
+                value: (() {
+                  final cityNames = _filteredCities
+                      .map((city) => city['name']?.toString())
+                      .where((name) => name != null && name.isNotEmpty)
+                      .toSet()
+                      .toList();
+                  return cityNames.contains(_selectedCity) ? _selectedCity : null;
+                })(),
                 decoration: _getInputDecoration('المدينة', Icons.location_city),
-                items: _filteredCities.map((city) {
-                  final name = city['name']?.toString() ?? '';
+                items: _filteredCities
+                    .map((city) => city['name']?.toString())
+                    .where((name) => name != null && name.isNotEmpty)
+                    .toSet()
+                    .toList()
+                    .map((name) {
                   return DropdownMenuItem<String>(
                     value: name,
-                    child: Text(name),
+                    child: Text(name ?? ''),
                   );
                 }).toList(),
                 onChanged: (value) {
