@@ -33,18 +33,15 @@ class HomeService {
   Future<List<dynamic>> getUser() async {
     final response = await _supabase.from('users').select('*');
     return response as List<dynamic>;
-  
-}
+  }
 
-
-
-
-
-
-
-
-
-
+  Future<List<dynamic>> getCurrencies() async {
+    final response = await _supabase
+        .from('currencies')
+        .select('*')
+        .order('id', ascending: true);
+    return response as List<dynamic>;
+  }
 
   // Search ads
 

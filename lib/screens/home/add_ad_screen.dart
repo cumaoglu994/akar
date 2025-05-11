@@ -24,10 +24,12 @@ class _AddAdScreenState extends State<AddAdScreen> {
   final _priceController = TextEditingController();
   String? _selectedCategory;
   String? _selectedCity;
+  int? _selectedCurrencyId;
   List<File> _images = [];
   bool _isLoading = false;
   List<dynamic> _categories = [];
   List<dynamic> _cities = [];
+  List<dynamic> _currencies = [];
   final HomeService _homeService = HomeService();
 
   @override
@@ -35,6 +37,7 @@ class _AddAdScreenState extends State<AddAdScreen> {
     super.initState();
     _loadCategories();
     _loadCities();
+    _loadCurrencies();
   }
 
   Future<void> _loadCategories() async {
@@ -65,6 +68,22 @@ class _AddAdScreenState extends State<AddAdScreen> {
     } catch (e) {
       if (mounted) {
         _showErrorSnackBar('خطأ في تحميل المدن: $e');
+      }
+    }
+  }
+
+  Future<void> _loadCurrencies() async {
+    try {
+      final currencies = await _homeService.getCurrencies();
+      setState(() {
+        _currencies = currencies;
+        if (currencies.isNotEmpty) {
+          _selectedCurrencyId = currencies[0]['id'];
+        }
+      });
+    } catch (e) {
+      if (mounted) {
+        _showErrorSnackBar('خطأ في تحميل العملات: $e');
       }
     }
   }
@@ -222,6 +241,7 @@ class _AddAdScreenState extends State<AddAdScreen> {
         'title': _titleController.text,
         'description': _descriptionController.text,
         'price': int.parse(_priceController.text),
+        'currency_id': _selectedCurrencyId,
         'city': _selectedCity,
         'category': _selectedCategory,
         'images': imageUrls,
@@ -455,19 +475,48 @@ class _AddAdScreenState extends State<AddAdScreen> {
                 },
               ),
               const SizedBox(height: 16),
-              TextFormField(
-                controller: _priceController,
-                keyboardType: TextInputType.number,
-                decoration: _getInputDecoration('السعر (ل.س)', Icons.monetization_on),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'الرجاء إدخال السعر';
-                  }
-                  if (int.tryParse(value) == null) {
-                    return 'الرجاء إدخال رقم صحيح';
-                  }
-                  return null;
-                },
+              Row(
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: TextFormField(
+                      controller: _priceController,
+                      keyboardType: TextInputType.number,
+                      decoration: _getInputDecoration('السعر', Icons.monetization_on),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'الرجاء إدخال السعر';
+                        }
+                        if (int.tryParse(value) == null) {
+                          return 'الرجاء إدخال رقم صحيح';
+                        }
+                        return null;
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    flex: 1,
+                    child: DropdownButtonFormField<int>(
+                      value: _selectedCurrencyId,
+                      decoration: _getInputDecoration('العملة', Icons.currency_exchange),
+                      items: _currencies.map((currency) {
+                        return DropdownMenuItem<int>(
+                          value: currency['id'],
+                          child: Text('${currency['symbol']} - ${currency['name']}'),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() => _selectedCurrencyId = value);
+                        }
+                      },
+                      dropdownColor: Colors.white,
+                      icon: const Icon(Icons.arrow_drop_down_circle),
+                      style: TextStyle(color: Colors.grey.shade800, fontSize: 16),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 24),
               const Text(
