@@ -376,30 +376,7 @@ class _MainScreenState extends State<MainScreen> {
                           })(),
                         ), const SizedBox(width: 10),
                          Expanded(
-                           child: _buildDropdown(
-                                                 value: _selectedCategory,
-                                                 hint: 'الفئة',
-                                                 icon: Icons.category,
-                                                 items: [
-                                                   const DropdownMenuItem(
-                            value: 'all',
-                            child: Text('الفئات'),
-                                                   ),
-                                                   ..._category.map((category) {
-                            return DropdownMenuItem<String>(
-                              value: category.id,
-                              child: Text(category.name),
-                            );
-                                                   }).toList(),
-                                                 ],
-                                                 onChanged: (value) {
-                                                   if (value != null) {
-                            setState(() {
-                              _selectedCategory = value;
-                            });
-                                                   }
-                                                 },
-                                               ),
+                           child: _buildCategoryDropdown(),
                          ),
                       ],
                     ),
@@ -574,7 +551,7 @@ class _MainScreenState extends State<MainScreen> {
 
       // Kategori filtresi
       if (_selectedCategory != 'all') {
-        final adCategory = ad['category_id']?.toString() ?? '';
+        final adCategory = ad['category']?.toString() ?? '';
         if (adCategory != _selectedCategory) {
           return false;
         }
@@ -735,6 +712,33 @@ class _MainScreenState extends State<MainScreen> {
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
+    );
+  }
+
+  Widget _buildCategoryDropdown() {
+    return _buildDropdown(
+      value: _selectedCategory,
+      hint: 'الفئة',
+      icon: Icons.category,
+      items: [
+        const DropdownMenuItem(
+          value: 'all',
+          child: Text('الكل'),
+        ),
+        ..._category.map((category) {
+          return DropdownMenuItem<String>(
+            value: category.name,
+            child: Text(category.name),
+          );
+        }).toList(),
+      ],
+      onChanged: (value) {
+        if (value != null) {
+          setState(() {
+            _selectedCategory = value;
+          });
+        }
+      },
     );
   }
 }
