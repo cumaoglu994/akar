@@ -33,15 +33,6 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    signingConfigs {
-        create("release") {
-            storeFile = file("akar_keystore.jks")
-            storePassword = "your_keystore_password"
-            keyAlias = "akar"
-            keyPassword = "your_key_password"
-        }
-    }
-
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -50,7 +41,6 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("release")
         }
     }
 }
