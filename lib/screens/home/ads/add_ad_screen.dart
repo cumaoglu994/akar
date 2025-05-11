@@ -7,8 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../providers/auth_provider.dart';
-import '../../services/home_service.dart';
+import '../../../providers/auth_provider.dart';
+import '../../../services/home_service.dart';
 
 class AddAdScreen extends StatefulWidget {
   const AddAdScreen({super.key});

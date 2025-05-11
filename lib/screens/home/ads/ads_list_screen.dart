@@ -2,7 +2,7 @@ import 'package:akar/services/home_service.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'ad_details_screen.dart';
-import '../../utils/constants.dart';
+import '../../../utils/constants.dart';
 
 class AdsListScreen extends StatefulWidget {
   const AdsListScreen({super.key});

@@ -3,8 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:card_swiper/card_swiper.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart'; // Daha iyi resim yükleme
-import '../../providers/auth_provider.dart';
-import 'chat_screen.dart';
+import '../../../providers/auth_provider.dart';
+import '../chat_screen.dart';
 
 class AdDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> ad;

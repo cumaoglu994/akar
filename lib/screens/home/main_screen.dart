@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../utils/constants.dart';
 import '../../services/home_service.dart';
-import 'ad_details_screen.dart';
+import 'ads/ad_details_screen.dart';
 
 class City {
   final String id;
@@ -171,6 +171,9 @@ class _MainScreenState extends State<MainScreen> {
 
           _isLoading = false;
         });
+
+        // Veriler yüklendikten sonra filtreleri sıfırla
+        _resetFilters();
       }
     } catch (e) {
       debugPrint('Error in _loadData: $e');

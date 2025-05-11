@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../providers/auth_provider.dart';
-import '../../utils/constants.dart';
+import '../../../providers/auth_provider.dart';
+import '../../../utils/constants.dart';
+import '../../../screens/auth/login_screen.dart';
 import 'ad_details_screen.dart';
 
 class MyAdsScreen extends StatefulWidget {
@@ -343,7 +344,11 @@ class _MyAdsScreenState extends State<MyAdsScreen> {
             const SizedBox(height: 24),
             ElevatedButton.icon(
               onPressed: () {
-                Navigator.pushNamed(context, '/login');
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) =>  LoginScreen(),
+                  ),
+                );
               },
               icon: const Icon(Icons.login),
               label: const Text('تسجيل الدخول'),
